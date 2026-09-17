@@ -2,3 +2,6 @@ node_modules/
 .env
 .DS_Store
 frontend/dist/
+mobile-app/build-config.json
+mobile-app/src/generated/appConfig.js
+mobile-app/android/app/build-config.gradle

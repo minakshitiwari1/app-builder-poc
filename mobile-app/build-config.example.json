@@ -1,0 +1,12 @@
+{
+  "buildId": "LOCAL-DEVELOPMENT",
+  "platform": "android",
+  "config": {
+    "tenantId": "local-demo",
+    "appName": "App Builder POC",
+    "environment": "development",
+    "androidPackageName": "com.appbuilder.poc",
+    "iosBundleId": "com.appbuilder.poc.ios",
+    "theme": { "primaryColor": "#2563EB" }
+  }
+}

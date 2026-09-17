@@ -3,7 +3,7 @@ const githubService = require('../services/githubService');
 
 const VALID_PLATFORMS = ['android', 'ios'];
 
-const saveBuild = (req, res) => {
+const saveBuild = async (req, res) => {
   try {
     const config = req.body;
 
@@ -14,7 +14,7 @@ const saveBuild = (req, res) => {
       });
     }
 
-    const build = buildService.createBuild(config);
+    const build = await buildService.createBuild(config);
 
     return res.status(201).json({
       success: true,
@@ -31,11 +31,11 @@ const saveBuild = (req, res) => {
   }
 };
 
-const getBuild = (req, res) => {
+const getBuild = async (req, res) => {
   try {
     const { buildId } = req.params;
 
-    const build = buildService.getBuild(buildId);
+    const build = await buildService.getBuild(buildId);
 
     if (!build) {
       return res.status(404).json({
@@ -63,7 +63,7 @@ const publishBuild = async (req, res) => {
     const { buildId } = req.params;
     const { platform } = req.body;
 
-    const build = buildService.getBuild(buildId);
+    const build = await buildService.getBuild(buildId);
 
     if (!build) {
       return res.status(404).json({
@@ -79,13 +79,36 @@ const publishBuild = async (req, res) => {
       });
     }
 
+    const ciAccess = await buildService.issueCiAccess(buildId);
+
+    if (!ciAccess) {
+      return res.status(404).json({
+        success: false,
+        message: 'Build not found',
+      });
+    }
+
     try {
-      await githubService.triggerBuildWorkflow({ buildId, platform });
+      await githubService.createCiTokenSecret({
+        secretName: ciAccess.secretName,
+        token: ciAccess.token,
+      });
+
+      await githubService.triggerBuildWorkflow({
+        buildId,
+        platform,
+        ciTokenSecretName: ciAccess.secretName,
+      });
     } catch (githubError) {
       console.error(
         'GitHub workflow dispatch error:',
         githubError.response?.data || githubError.message
       );
+
+      await buildService.invalidateCiAccess(buildId);
+      await githubService.removeCiTokenSecret(ciAccess.secretName).catch(cleanupError => {
+        console.error('Failed to remove GitHub CI secret:', cleanupError.message);
+      });
 
       return res.status(502).json({
         success: false,
@@ -93,7 +116,7 @@ const publishBuild = async (req, res) => {
       });
     }
 
-    const updatedBuild = buildService.markBuildQueued(buildId, platform);
+    const updatedBuild = await buildService.markBuildQueued(buildId, platform);
 
     return res.json({
       success: true,

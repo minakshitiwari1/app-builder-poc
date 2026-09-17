@@ -5,6 +5,7 @@ const {
   getBuild,
   publishBuild,
 } = require('../controllers/buildController');
+const { getBuildConfigForCi } = require('../controllers/ciController');
 
 const router = express.Router();
 
@@ -13,5 +14,6 @@ router.post('/builds', saveBuild);
 router.get('/builds/:buildId', getBuild);
 
 router.post('/builds/:buildId/publish', publishBuild);
+router.get('/ci/builds/:buildId/config', getBuildConfigForCi);
 
 module.exports = router;

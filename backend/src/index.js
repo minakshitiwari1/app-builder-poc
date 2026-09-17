@@ -4,6 +4,7 @@ const express = require('express');
 const cors = require('cors');
 
 const buildRoutes = require('./routes/buildRoutes');
+const connectDatabase = require('./config/database');
 
 const app = express();
 
@@ -21,7 +22,18 @@ app.get('/health', (req, res) => {
 
 app.use('/api', buildRoutes);
 
-app.listen(PORT, () => {
-  console.log(`🚀 App Builder backend running on port ${PORT}`);
-  console.log(`🔗 http://localhost:${PORT}`);
-});
+const startServer = async () => {
+  try {
+    await connectDatabase();
+
+    app.listen(PORT, () => {
+      console.log(`🚀 App Builder backend running on port ${PORT}`);
+      console.log(`🔗 http://localhost:${PORT}`);
+    });
+  } catch (error) {
+    console.error('Backend startup aborted because MongoDB is unavailable.');
+    process.exitCode = 1;
+  }
+};
+
+startServer();
