@@ -77,3 +77,8 @@ code {
   padding: 12px;
   border-radius: 6px;
 }
+
+.error-text {
+  color: #c62828;
+  margin-top: 12px;
+}

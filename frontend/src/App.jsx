@@ -16,6 +16,9 @@ function App() {
 
   const [build, setBuild] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [platform, setPlatform] = useState('android');
+  const [publishing, setPublishing] = useState(false);
+  const [publishError, setPublishError] = useState('');
 
   const handleChange = event => {
     const { name, value } = event.target;
@@ -55,16 +58,36 @@ function App() {
     }
   };
 
-  const handlePublish = () => {
+  const handlePublish = async () => {
     if (!build) {
       alert('Save the configuration first');
       return;
     }
 
-    // We will connect this to GitHub Actions next.
-    console.log('Publishing build:', build.buildId);
+    try {
+      setPublishing(true);
+      setPublishError('');
 
-    alert(`Next step: trigger CI for ${build.buildId}`);
+      const response = await axios.post(
+        `${API_URL}/builds/${build.buildId}/publish`,
+        { platform }
+      );
+
+      setBuild(prev => ({
+        ...prev,
+        status: response.data.data.status,
+        platform: response.data.data.platform,
+      }));
+    } catch (error) {
+      console.error(error);
+
+      const message =
+        error.response?.data?.message || 'Failed to publish build';
+
+      setPublishError(message);
+    } finally {
+      setPublishing(false);
+    }
   };
 
   return (
@@ -124,6 +147,17 @@ function App() {
           onChange={handleChange}
         />
 
+        <label>Platform</label>
+
+        <select
+          name="platform"
+          value={platform}
+          onChange={event => setPlatform(event.target.value)}
+        >
+          <option value="android">Android</option>
+          <option value="ios">iOS</option>
+        </select>
+
         <div className="actions">
           <button
             onClick={handleSave}
@@ -134,11 +168,13 @@ function App() {
 
           <button
             onClick={handlePublish}
-            disabled={!build}
+            disabled={!build || publishing}
           >
-            Publish
+            {publishing ? 'Publishing...' : 'Publish'}
           </button>
         </div>
+
+        {publishError && <p className="error-text">{publishError}</p>}
       </div>
 
       {build && (
@@ -154,6 +190,12 @@ function App() {
           <p>
             <strong>Status:</strong> {build.status}
           </p>
+
+          {build.platform && (
+            <p>
+              <strong>Platform:</strong> {build.platform}
+            </p>
+          )}
         </div>
       )}
     </div>
