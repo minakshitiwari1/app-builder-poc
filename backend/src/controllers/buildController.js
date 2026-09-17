@@ -101,13 +101,22 @@ const publishBuild = async (req, res) => {
       });
     } catch (githubError) {
       console.error(
-        'GitHub workflow dispatch error:',
-        githubError.response?.data || githubError.message
+        'GitHub publish flow failed',
+        githubService.getSafeGitHubErrorDetails(
+          githubError.githubOperation || 'GitHub API operation',
+          githubError
+        )
       );
 
       await buildService.invalidateCiAccess(buildId);
       await githubService.removeCiTokenSecret(ciAccess.secretName).catch(cleanupError => {
-        console.error('Failed to remove GitHub CI secret:', cleanupError.message);
+        console.error(
+          'GitHub temporary secret cleanup failed',
+          githubService.getSafeGitHubErrorDetails(
+            cleanupError.githubOperation || 'delete temporary secret',
+            cleanupError
+          )
+        );
       });
 
       return res.status(502).json({
