@@ -82,7 +82,9 @@ const buildSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-buildSchema.index({ 'config.androidPackageName': 1 }, { unique: true, sparse: true });
-buildSchema.index({ 'config.iosBundleId': 1 }, { unique: true, sparse: true });
+// A package ID identifies an app, not a single immutable build snapshot.
+// Multiple releases of the same app intentionally reuse these identifiers.
+buildSchema.index({ 'config.androidPackageName': 1 });
+buildSchema.index({ 'config.iosBundleId': 1 });
 
 module.exports = mongoose.model('Build', buildSchema);
