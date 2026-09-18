@@ -19,6 +19,10 @@ on:
         description: 'Name of the build-scoped GitHub Actions secret created by the backend'
         required: true
         type: string
+      status_token_secret_name:
+        description: 'Name of the build-scoped status callback secret'
+        required: true
+        type: string
 
 jobs:
   build-android:
@@ -27,10 +31,21 @@ jobs:
       BUILD_API_URL: ${{ vars.BUILD_API_URL }}
       BUILD_ID: ${{ inputs.build_id }}
       CI_TOKEN: ${{ secrets[inputs.ci_token_secret_name] }}
+      STATUS_TOKEN: ${{ secrets[inputs.status_token_secret_name] }}
       ANDROID_HOME: /usr/local/lib/android/sdk
       ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
 
     steps:
+      - name: Mark build as building
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --request POST \
+            --header "Authorization: Bearer $STATUS_TOKEN" \
+            --header "Content-Type: application/json" \
+            --data '{"status":"BUILDING"}' \
+            "$BUILD_API_URL/api/ci/builds/$BUILD_ID/status"
+
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -147,3 +162,23 @@ jobs:
           name: app-builder-${{ inputs.build_id }}-android
           path: mobile-app/android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
+
+      - name: Mark build as built
+        if: success()
+        shell: bash
+        run: |
+          curl --fail --silent --show-error --request POST \
+            --header "Authorization: Bearer $STATUS_TOKEN" \
+            --header "Content-Type: application/json" \
+            --data '{"status":"BUILT"}' \
+            "$BUILD_API_URL/api/ci/builds/$BUILD_ID/status"
+
+      - name: Mark build as failed
+        if: failure()
+        shell: bash
+        run: |
+          curl --silent --show-error --request POST \
+            --header "Authorization: Bearer $STATUS_TOKEN" \
+            --header "Content-Type: application/json" \
+            --data '{"status":"FAILED","failureReason":"GitHub Actions build failed"}' \
+            "$BUILD_API_URL/api/ci/builds/$BUILD_ID/status" || true

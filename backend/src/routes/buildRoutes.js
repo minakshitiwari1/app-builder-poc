@@ -3,8 +3,10 @@ const multer = require('multer');
 
 const {
   saveBuild,
+  listBuilds,
   getBuild,
   publishBuild,
+  updateCiStatus,
 } = require('../controllers/buildController');
 const { getBuildConfigForCi } = require('../controllers/ciController');
 const { uploadAsset } = require('../controllers/assetController');
@@ -20,11 +22,13 @@ router.post(
   ]),
   saveBuild
 );
+router.get('/builds', listBuilds);
 
 router.get('/builds/:buildId', getBuild);
 
 router.post('/builds/:buildId/publish', publishBuild);
 router.get('/ci/builds/:buildId/config', getBuildConfigForCi);
+router.post('/ci/builds/:buildId/status', updateCiStatus);
 router.post('/assets', ...uploadAsset);
 
 module.exports = router;

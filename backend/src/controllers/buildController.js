@@ -3,6 +3,8 @@ const githubService = require('../services/githubService');
 const assetService = require('../services/assetService');
 
 const VALID_PLATFORMS = ['android', 'ios'];
+const validAppIdentifier = value =>
+  typeof value === 'string' && /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*){2,}$/i.test(value);
 
 const saveBuild = async (req, res) => {
   const savedAssetIds = [];
@@ -13,6 +15,12 @@ const saveBuild = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: 'appName is required',
+      });
+    }
+    if (!validAppIdentifier(config.androidPackageName) || !validAppIdentifier(config.iosBundleId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'A valid Android package name and iOS bundle ID are required',
       });
     }
 
@@ -43,6 +51,13 @@ const saveBuild = async (req, res) => {
       await assetService.deleteAssets(savedAssetIds);
     }
     console.error('Save build error:', error);
+
+    if (error?.code === 11000) {
+      return res.status(409).json({
+        success: false,
+        message: 'This Android package name or iOS bundle ID is already in use',
+      });
+    }
 
     return res.status(500).json({
       success: false,
@@ -78,6 +93,16 @@ const getBuild = async (req, res) => {
   }
 };
 
+const listBuilds = async (_req, res) => {
+  try {
+    const builds = await buildService.listBuilds();
+    return res.json({ success: true, data: builds });
+  } catch (error) {
+    console.error('List builds error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to load builds' });
+  }
+};
+
 const publishBuild = async (req, res) => {
   try {
     const { buildId } = req.params;
@@ -100,25 +125,35 @@ const publishBuild = async (req, res) => {
     }
 
     const ciAccess = await buildService.issueCiAccess(buildId);
+    const statusAccess = await buildService.issueStatusAccess(buildId);
 
-    if (!ciAccess) {
+    if (!ciAccess || !statusAccess) {
       return res.status(404).json({
         success: false,
         message: 'Build not found',
       });
     }
 
+    let dispatch;
     try {
       await githubService.createCiTokenSecret({
         secretName: ciAccess.secretName,
         token: ciAccess.token,
       });
+      await githubService.createCiTokenSecret({
+        secretName: statusAccess.secretName,
+        token: statusAccess.token,
+      });
 
-      await githubService.triggerBuildWorkflow({
+      dispatch = await githubService.triggerBuildWorkflow({
         buildId,
         platform,
         ciTokenSecretName: ciAccess.secretName,
+        statusTokenSecretName: statusAccess.secretName,
       });
+      if (!dispatch.statusCallbacksEnabled) {
+        await githubService.removeCiTokenSecret(statusAccess.secretName);
+      }
     } catch (githubError) {
       console.error(
         'GitHub publish flow failed',
@@ -138,6 +173,7 @@ const publishBuild = async (req, res) => {
           )
         );
       });
+      await githubService.removeCiTokenSecret(statusAccess.secretName).catch(() => {});
 
       return res.status(502).json({
         success: false,
@@ -154,6 +190,7 @@ const publishBuild = async (req, res) => {
         buildId: updatedBuild.buildId,
         platform: updatedBuild.platform,
         status: updatedBuild.status,
+        statusCallbacksEnabled: dispatch.statusCallbacksEnabled,
       },
     });
   } catch (error) {
@@ -166,8 +203,30 @@ const publishBuild = async (req, res) => {
   }
 };
 
+const updateCiStatus = async (req, res) => {
+  const authorization = req.get('authorization');
+  if (!authorization?.startsWith('Bearer ')) {
+    return res.status(401).json({ success: false, message: 'CI authorization is required' });
+  }
+  try {
+    const build = await buildService.updateBuildStatus({
+      buildId: req.params.buildId,
+      token: authorization.slice('Bearer '.length),
+      status: req.body.status,
+      failureReason: req.body.failureReason,
+    });
+    if (!build) return res.status(403).json({ success: false, message: 'Invalid CI status update' });
+    return res.json({ success: true, data: { buildId: build.buildId, status: build.status } });
+  } catch (error) {
+    console.error('CI status update error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to update build status' });
+  }
+};
+
 module.exports = {
   saveBuild,
+  listBuilds,
   getBuild,
   publishBuild,
+  updateCiStatus,
 };

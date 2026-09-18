@@ -90,7 +90,7 @@ const removeCiTokenSecret = async secretName => {
   }
 };
 
-const triggerBuildWorkflow = async ({ buildId, platform, ciTokenSecretName }) => {
+const triggerBuildWorkflow = async ({ buildId, platform, ciTokenSecretName, statusTokenSecretName }) => {
   const { GITHUB_TOKEN, GITHUB_OWNER, GITHUB_REPO, GITHUB_WORKFLOW, GITHUB_BRANCH } =
     getGitHubConfig();
   const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/actions/workflows/${GITHUB_WORKFLOW}/dispatches`;
@@ -104,6 +104,7 @@ const triggerBuildWorkflow = async ({ buildId, platform, ciTokenSecretName }) =>
           build_id: buildId,
           platform,
           ci_token_secret_name: ciTokenSecretName,
+          status_token_secret_name: statusTokenSecretName,
         },
       },
       {
@@ -111,11 +112,33 @@ const triggerBuildWorkflow = async ({ buildId, platform, ciTokenSecretName }) =>
       }
     );
   } catch (error) {
+    // Allow publishing while the repository still has the pre-status-callback
+    // workflow. The next workflow push enables secure status updates.
+    const unexpectedStatusInput =
+      error?.response?.status === 422 &&
+      String(error?.response?.data?.message || '').includes('status_token_secret_name');
+    if (unexpectedStatusInput) {
+      try {
+        await axios.post(
+          url,
+          {
+            ref: GITHUB_BRANCH,
+            inputs: { build_id: buildId, platform, ci_token_secret_name: ciTokenSecretName },
+          },
+          { headers: githubHeaders(GITHUB_TOKEN) }
+        );
+        console.warn('Dispatched legacy workflow: CI status callbacks are unavailable until build-app.yml is pushed.');
+        return { statusCallbacksEnabled: false };
+      } catch (legacyError) {
+        logGitHubOperationFailure('legacy workflow dispatch', legacyError);
+        throw legacyError;
+      }
+    }
     logGitHubOperationFailure('workflow dispatch', error);
     throw error;
   }
 
-  return true;
+  return { statusCallbacksEnabled: true };
 };
 
 module.exports = {

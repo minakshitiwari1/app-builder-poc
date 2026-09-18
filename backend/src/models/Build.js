@@ -40,6 +40,15 @@ const ciAccessSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const ciStatusSchema = new mongoose.Schema(
+  {
+    tokenHash: { type: String, required: true },
+    expiresAt: { type: Date, required: true },
+    secretName: { type: String, required: true },
+  },
+  { _id: false }
+);
+
 const buildSchema = new mongoose.Schema(
   {
     buildId: {
@@ -59,12 +68,21 @@ const buildSchema = new mongoose.Schema(
       required: true,
     },
     publishedAt: Date,
+    queuedAt: Date,
+    buildStartedAt: Date,
+    buildCompletedAt: Date,
+    failedAt: Date,
+    failureReason: String,
     ciAccess: {
       type: ciAccessSchema,
       select: false,
     },
+    ciStatus: { type: ciStatusSchema, select: false },
   },
   { timestamps: true }
 );
+
+buildSchema.index({ 'config.androidPackageName': 1 }, { unique: true, sparse: true });
+buildSchema.index({ 'config.iosBundleId': 1 }, { unique: true, sparse: true });
 
 module.exports = mongoose.model('Build', buildSchema);
