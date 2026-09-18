@@ -172,17 +172,27 @@ jobs:
         working-directory: mobile-app
         run: npm run prepare:build
 
-      - name: Build release APK
+      - name: Build release APK and AAB
         working-directory: mobile-app/android
         run: |
           chmod +x gradlew
           ./gradlew assembleRelease --no-daemon
+          ./gradlew bundleRelease --no-daemon
+          test -s app/build/outputs/apk/release/app-release.apk
+          test -s app/build/outputs/bundle/release/app-release.aab
 
       - name: Upload Android APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-builder-${{ inputs.build_id }}-android
+          name: app-builder-${{ inputs.build_id }}-android-apk
           path: mobile-app/android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+
+      - name: Upload Android AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-builder-${{ inputs.build_id }}-android-aab
+          path: mobile-app/android/app/build/outputs/bundle/release/app-release.aab
           if-no-files-found: error
 
       - name: Mark build as built
