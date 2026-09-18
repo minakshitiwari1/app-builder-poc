@@ -28,7 +28,7 @@ jobs:
   build-android:
     runs-on: ubuntu-latest
     env:
-      BUILD_API_URL: ${{ vars.BUILD_API_URL }}
+      RAW_BUILD_API_URL: ${{ vars.BUILD_API_URL }}
       BUILD_ID: ${{ inputs.build_id }}
       CI_TOKEN: ${{ secrets[inputs.ci_token_secret_name] }}
       STATUS_TOKEN: ${{ secrets[inputs.status_token_secret_name] }}
@@ -36,26 +36,31 @@ jobs:
       ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
 
     steps:
-      - name: Normalize and validate build API URL
+      - name: Validate build API URL
         shell: bash
         run: |
           set -euo pipefail
-          RAW_BUILD_API_URL="$BUILD_API_URL"
-          BUILD_API_URL="$(printf '%s' "$RAW_BUILD_API_URL" | tr -d '\r\n' | sed 's:/*$::')"
+          RAW="$RAW_BUILD_API_URL"
+          printf 'RAW_BUILD_API_URL shell value: <%q>\n' "$RAW"
+          NORMALIZED="$(printf '%s' "$RAW" | tr -d '\r\n' | xargs | sed 's:/*$::')"
+          printf 'NORMALIZED_BUILD_API_URL shell value: <%q>\n' "$NORMALIZED"
 
-          if [[ ! "$BUILD_API_URL" =~ ^https:// ]] || [[ "$BUILD_API_URL" =~ [[:space:]\[\]\(\)] ]]; then
+          if [[ -z "$NORMALIZED" ]] || [[ ! "$NORMALIZED" =~ ^https:// ]] || [[ "$NORMALIZED" =~ [[:space:]\[\]\(\)] ]] || [[ "$NORMALIZED" == *\\* ]] || [[ "$NORMALIZED" == *\"* ]] || [[ "$NORMALIZED" == *\'* ]]; then
             echo "Invalid BUILD_API_URL configuration"
             exit 1
           fi
 
-          printf 'BUILD_API_URL=<%q>\n' "$BUILD_API_URL"
-          printf 'BUILD_API_URL=%s\n' "$BUILD_API_URL" >> "$GITHUB_ENV"
+          HEALTH_URL="${NORMALIZED}/health"
+          printf 'HEALTH_URL shell value: <%q>\n' "$HEALTH_URL"
+          curl --fail --show-error --silent "$HEALTH_URL"
+          printf 'NORMALIZED_BUILD_API_URL=%s\n' "$NORMALIZED" >> "$GITHUB_ENV"
 
       - name: Mark build as building
         shell: bash
         run: |
           set -euo pipefail
-          STATUS_URL="${BUILD_API_URL}/api/ci/builds/${BUILD_ID}/status"
+          STATUS_URL="${NORMALIZED_BUILD_API_URL}/api/ci/builds/${BUILD_ID}/status"
+          printf 'STATUS_URL shell value: <%q>\n' "$STATUS_URL"
           curl --fail --silent --show-error --request POST \
             --header "Authorization: Bearer $STATUS_TOKEN" \
             --header "Content-Type: application/json" \
@@ -79,13 +84,13 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [ -z "$BUILD_API_URL" ] || [ -z "$CI_TOKEN" ]; then
+          if [ -z "$NORMALIZED_BUILD_API_URL" ] || [ -z "$CI_TOKEN" ]; then
             echo "BUILD_API_URL or the build-scoped CI secret is unavailable."
             exit 1
           fi
 
           config_file="$RUNNER_TEMP/build-config.json"
-          CONFIG_URL="${BUILD_API_URL}/api/ci/builds/${BUILD_ID}/config"
+          CONFIG_URL="${NORMALIZED_BUILD_API_URL}/api/ci/builds/${BUILD_ID}/config"
           status_code=$(curl --silent --show-error --output "$config_file" --write-out '%{http_code}' \
             --header "Authorization: Bearer $CI_TOKEN" \
             "$CONFIG_URL")
@@ -135,7 +140,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p mobile-app/build-assets
-          download_asset() { local key="$1" output="$2"; local id asset_url; id=$(jq -r ".config.branding.${key}.assetId // empty" mobile-app/build-config.json); if [ -n "$id" ]; then asset_url="${BUILD_API_URL}/assets/${id}.png"; curl --fail --silent --show-error "$asset_url" --output "$output"; test -s "$output"; fi; }
+          download_asset() { local key="$1" output="$2"; local id asset_url; id=$(jq -r ".config.branding.${key}.assetId // empty" mobile-app/build-config.json); if [ -n "$id" ]; then asset_url="${NORMALIZED_BUILD_API_URL}/assets/${id}.png"; curl --fail --silent --show-error "$asset_url" --output "$output"; test -s "$output"; fi; }
           download_asset appIconAsset mobile-app/build-assets/app-icon.png
           download_asset splashAsset mobile-app/build-assets/splash.png
 
@@ -184,7 +189,7 @@ jobs:
         if: success()
         shell: bash
         run: |
-          STATUS_URL="${BUILD_API_URL}/api/ci/builds/${BUILD_ID}/status"
+          STATUS_URL="${NORMALIZED_BUILD_API_URL}/api/ci/builds/${BUILD_ID}/status"
           curl --fail --silent --show-error --request POST \
             --header "Authorization: Bearer $STATUS_TOKEN" \
             --header "Content-Type: application/json" \
@@ -195,7 +200,7 @@ jobs:
         if: failure()
         shell: bash
         run: |
-          STATUS_URL="${BUILD_API_URL}/api/ci/builds/${BUILD_ID}/status"
+          STATUS_URL="${NORMALIZED_BUILD_API_URL}/api/ci/builds/${BUILD_ID}/status"
           curl --silent --show-error --request POST \
             --header "Authorization: Bearer $STATUS_TOKEN" \
             --header "Content-Type: application/json" \
