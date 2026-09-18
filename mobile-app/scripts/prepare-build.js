@@ -89,7 +89,14 @@ const generateAndroidAssets = async () => {
   const resourcesDirectory = path.join(projectRoot, 'android/app/src/main/res');
   const iconPath = path.join(assetsDirectory, 'app-icon.png');
   const splashPath = path.join(assetsDirectory, 'splash.png');
+  const splashLogoPngPath = path.join(resourcesDirectory, 'drawable', 'app_builder_splash_logo.png');
+  const legacySplashLogoXmlPath = path.join(resourcesDirectory, 'drawable', 'app_builder_splash_logo.xml');
   const iconSizes = { 'mipmap-mdpi': 48, 'mipmap-hdpi': 72, 'mipmap-xhdpi': 96, 'mipmap-xxhdpi': 144, 'mipmap-xxxhdpi': 192 };
+
+  // These are generated App Builder resources. Removing only these files makes
+  // repeated runs deterministic and removes the legacy XML/PNG name conflict.
+  fs.rmSync(splashLogoPngPath, { force: true });
+  fs.rmSync(legacySplashLogoXmlPath, { force: true });
 
   if (input.config.branding?.appIconAsset) {
     if (!fs.existsSync(iconPath)) fail('configured app icon was not downloaded');
@@ -102,7 +109,12 @@ const generateAndroidAssets = async () => {
 
   if (input.config.branding?.splashAsset) {
     if (!fs.existsSync(splashPath)) fail('configured splash logo was not downloaded');
-    await sharp(splashPath).resize(300, 300, { fit: 'inside' }).png().toFile(path.join(resourcesDirectory, 'drawable/app_builder_splash_logo.png'));
+    await sharp(splashPath).resize(300, 300, { fit: 'inside' }).png().toFile(splashLogoPngPath);
+  } else {
+    // Keep the splash wrapper valid for local/example builds without a client logo.
+    await sharp({ create: { width: 1, height: 1, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
+      .png()
+      .toFile(splashLogoPngPath);
   }
 
   const splashColor = input.config.splash?.backgroundColor || config.primaryColor;

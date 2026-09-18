@@ -5,4 +5,5 @@ frontend/dist/
 mobile-app/build-config.json
 mobile-app/src/generated/appConfig.js
 mobile-app/android/app/build-config.gradle
+mobile-app/android/app/src/main/res/drawable/app_builder_splash_logo.png
 backend/storage/assets/
