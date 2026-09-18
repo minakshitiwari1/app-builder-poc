@@ -1,4 +1,5 @@
 const express = require('express');
+const multer = require('multer');
 
 const {
   saveBuild,
@@ -9,8 +10,16 @@ const { getBuildConfigForCi } = require('../controllers/ciController');
 const { uploadAsset } = require('../controllers/assetController');
 
 const router = express.Router();
+const buildUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
-router.post('/builds', saveBuild);
+router.post(
+  '/builds',
+  buildUpload.fields([
+    { name: 'appIcon', maxCount: 1 },
+    { name: 'splashLogo', maxCount: 1 },
+  ]),
+  saveBuild
+);
 
 router.get('/builds/:buildId', getBuild);
 

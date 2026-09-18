@@ -1,12 +1,13 @@
 const buildService = require('../services/buildService');
 const githubService = require('../services/githubService');
-const { assertAssetReference } = require('../services/assetService');
+const assetService = require('../services/assetService');
 
 const VALID_PLATFORMS = ['android', 'ios'];
 
 const saveBuild = async (req, res) => {
+  const savedAssetIds = [];
   try {
-    const config = req.body;
+    const config = typeof req.body.config === 'string' ? JSON.parse(req.body.config) : req.body;
 
     if (!config.appName) {
       return res.status(400).json({
@@ -14,8 +15,21 @@ const saveBuild = async (req, res) => {
         message: 'appName is required',
       });
     }
-    await assertAssetReference(config.branding?.appIconAsset);
-    await assertAssetReference(config.branding?.splashAsset);
+
+    // Files arrive only with this Save request. They are never written to disk.
+    for (const [fieldName, configKey] of [
+      ['appIcon', 'appIconAsset'],
+      ['splashLogo', 'splashAsset'],
+    ]) {
+      const file = req.files?.[fieldName]?.[0];
+      if (!file) continue;
+      const assetId = await assetService.saveImage(file);
+      savedAssetIds.push(assetId);
+      config.branding = { ...config.branding, [configKey]: { assetId } };
+    }
+
+    await assetService.assertAssetReference(config.branding?.appIconAsset);
+    await assetService.assertAssetReference(config.branding?.splashAsset);
 
     const build = await buildService.createBuild(config);
 
@@ -25,6 +39,9 @@ const saveBuild = async (req, res) => {
       data: build,
     });
   } catch (error) {
+    if (savedAssetIds.length) {
+      await assetService.deleteAssets(savedAssetIds);
+    }
     console.error('Save build error:', error);
 
     return res.status(500).json({

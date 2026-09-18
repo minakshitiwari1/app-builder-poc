@@ -1,9 +1,7 @@
-const fs = require('fs/promises');
-const path = require('path');
 const { randomUUID } = require('crypto');
 const sharp = require('sharp');
+const Asset = require('../models/Asset');
 
-const assetsDirectory = path.join(__dirname, '../../storage/assets');
 const validAssetId = value => /^[0-9a-f-]{36}$/i.test(value || '');
 
 const saveImage = async file => {
@@ -15,15 +13,24 @@ const saveImage = async file => {
     throw new Error('Image dimensions must be between 1 and 4096 pixels');
   }
   const assetId = randomUUID();
-  await fs.mkdir(assetsDirectory, { recursive: true });
-  await sharp(file.buffer).rotate().png().toFile(path.join(assetsDirectory, `${assetId}.png`));
+  const data = await sharp(file.buffer).rotate().png().toBuffer();
+  await Asset.create({ assetId, mimeType: 'image/png', data });
   return assetId;
 };
 
 const assertAssetReference = async asset => {
   if (!asset) return;
   if (!validAssetId(asset.assetId)) throw new Error('Invalid asset reference');
-  await fs.access(path.join(assetsDirectory, `${asset.assetId}.png`));
+  if (!(await Asset.exists({ assetId: asset.assetId }))) {
+    throw new Error('Referenced asset does not exist');
+  }
 };
 
-module.exports = { assetsDirectory, saveImage, assertAssetReference };
+const getAsset = assetId => {
+  if (!validAssetId(assetId)) return null;
+  return Asset.findOne({ assetId }).select('+data');
+};
+
+const deleteAssets = assetIds => Asset.deleteMany({ assetId: { $in: assetIds } });
+
+module.exports = { saveImage, assertAssetReference, getAsset, deleteAssets };

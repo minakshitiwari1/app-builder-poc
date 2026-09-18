@@ -10,4 +10,19 @@ const uploadAsset = [upload.single('asset'), async (req, res) => {
     res.status(400).json({ success: false, message: error.message || 'Invalid asset upload' });
   }
 }];
-module.exports = { uploadAsset };
+
+const getAsset = async (req, res) => {
+  try {
+    const asset = await assetService.getAsset(req.params.assetId);
+    if (!asset) {
+      return res.status(404).json({ success: false, message: 'Asset not found' });
+    }
+
+    res.type(asset.mimeType);
+    return res.send(asset.data);
+  } catch (error) {
+    return res.status(500).json({ success: false, message: 'Failed to load asset' });
+  }
+};
+
+module.exports = { uploadAsset, getAsset };
