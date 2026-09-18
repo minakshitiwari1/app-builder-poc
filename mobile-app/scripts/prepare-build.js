@@ -71,6 +71,54 @@ const runtimeConfig = {
   layout: input.config.layout || {},
   features: input.config.features || {},
 };
+
+const pick = (value, allowed, fallback) => allowed.includes(value) ? value : fallback;
+const numberPick = (value, allowed, fallback) => allowed.includes(Number(value)) ? Number(value) : fallback;
+const colors = input.config.theme || {};
+runtimeConfig.theme = {
+  ...colors,
+  primaryColor: config.primaryColor,
+  secondaryColor: requiredString(colors.secondaryColor || '#FFB067', 'config.theme.secondaryColor'),
+  backgroundColor: requiredString(colors.backgroundColor || '#FFFFFF', 'config.theme.backgroundColor'),
+  surfaceColor: requiredString(colors.surfaceColor || '#FFFFFF', 'config.theme.surfaceColor'),
+  textPrimaryColor: requiredString(colors.textPrimaryColor || colors.textPrimary || '#171717', 'config.theme.textPrimaryColor'),
+  textSecondaryColor: requiredString(colors.textSecondaryColor || colors.textSecondary || '#666666', 'config.theme.textSecondaryColor'),
+  borderColor: requiredString(colors.borderColor || '#E5E5E5', 'config.theme.borderColor'),
+  cornerStyle: pick(colors.cornerStyle, ['square', 'soft', 'rounded'], 'rounded'),
+  spacing: pick(colors.spacing, ['compact', 'comfortable', 'spacious'], 'comfortable'),
+  typography: {
+    fontFamily: pick(colors.typography?.fontFamily || input.config.typography?.fontFamily, ['System'], 'System'),
+    headingWeight: pick(String(colors.typography?.headingWeight || input.config.typography?.headingWeight), ['600', '700', '800'], '700'),
+    bodyWeight: pick(String(colors.typography?.bodyWeight || input.config.typography?.bodyWeight), ['400', '500'], '400'),
+  },
+};
+runtimeConfig.components = {
+  button: {
+    variant: pick(input.config.components?.button?.variant || input.config.buttonStyle?.variant, ['filled', 'outline', 'soft'], 'filled'),
+    shape: pick(input.config.components?.button?.shape, ['square', 'rounded', 'pill'], 'rounded'),
+    height: pick(input.config.components?.button?.height, ['compact', 'standard', 'large'], 'standard'),
+  },
+  card: {
+    variant: pick(input.config.components?.card?.variant, ['flat', 'bordered', 'elevated'], 'elevated'),
+    shape: pick(input.config.components?.card?.shape, ['square', 'soft', 'rounded'], runtimeConfig.theme.cornerStyle),
+  },
+  header: { variant: pick(input.config.components?.header?.variant, ['primary', 'light', 'minimal'], 'primary') },
+};
+runtimeConfig.screens = {
+  home: {
+    categoryLayout: pick(input.config.screens?.home?.categoryLayout, ['grid', 'horizontal'], 'grid'),
+    categoryColumns: numberPick(input.config.screens?.home?.categoryColumns, [3, 4], 4),
+    productLayout: pick(input.config.screens?.home?.productLayout, ['grid', 'list'], 'grid'),
+    productColumns: numberPick(input.config.screens?.home?.productColumns, [2, 3], 2),
+    showBanner: input.config.screens?.home?.showBanner !== false,
+  },
+  productDetails: {
+    imageStyle: pick(input.config.screens?.productDetails?.imageStyle, ['compact', 'large'], 'large'),
+    showRating: input.config.screens?.productDetails?.showRating !== false,
+    showDescription: input.config.screens?.productDetails?.showDescription !== false,
+    stickyAddButton: input.config.screens?.productDetails?.stickyAddButton === true,
+  },
+};
 const generatedSourcePath = path.join(projectRoot, 'src', 'generated', 'appConfig.js');
 const generatedGradlePath = path.join(projectRoot, 'android', 'app', 'build-config.gradle');
 
@@ -117,8 +165,7 @@ const generateAndroidAssets = async () => {
       .toFile(splashLogoPngPath);
   }
 
-  const splashColor = input.config.splash?.backgroundColor || config.primaryColor;
-  fs.writeFileSync(path.join(resourcesDirectory, 'values/app_builder_splash.xml'), `<resources><color name="app_builder_splash_background">${splashColor}</color></resources>`);
+  fs.writeFileSync(path.join(resourcesDirectory, 'values/app_builder_splash.xml'), `<resources><color name="app_builder_splash_background">${config.primaryColor}</color></resources>`);
 };
 
 generateAndroidAssets().then(() => console.log(`Prepared Android build for ${config.buildId} (${config.androidPackageName}).`)).catch(error => fail(error.message));

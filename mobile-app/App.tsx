@@ -1,54 +1,7 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * @format
- */
-
-import { StatusBar, StyleSheet, Text, View } from 'react-native';
-import appConfig from './src/generated/appConfig';
-
-function App() {
-  const theme: any = appConfig.theme || {};
-  const button: any = appConfig.buttonStyle || {};
-  const card: any = appConfig.cardStyle || {};
-  const features: any = appConfig.features || {};
-  return (
-    <View style={[styles.container, { backgroundColor: theme.backgroundColor || '#F8FAFC' }]}>
-      <StatusBar backgroundColor={theme.primaryColor || appConfig.primaryColor} barStyle="light-content" />
-      {features.showHeader !== false && <View style={[styles.hero, { backgroundColor: appConfig.header?.backgroundColor || theme.primaryColor || appConfig.primaryColor }]}>
-        <Text style={styles.productName}>{appConfig.appName}</Text>
-        <Text style={styles.title}>App Builder POC</Text>
-      </View>}
-      <View style={styles.content}>
-        {features.showDemoCard !== false && <View style={[styles.demoCard, { backgroundColor: card.backgroundColor || theme.surfaceColor || '#fff', borderColor: card.borderColor || theme.primaryColor || appConfig.primaryColor, borderRadius: card.borderRadius || 16, padding: card.padding || 16 }]}><Text style={{ color: theme.textPrimaryColor }}>Configurable demo card</Text></View>}
-        <Detail label="Tenant" value={appConfig.tenantId} />
-        <Detail label="Environment" value={appConfig.environment} />
-        {features.showBuildInfo !== false && <Detail label="Build" value={appConfig.buildId} />}
-        {features.showPrimaryButton !== false && <View style={[styles.cta, { backgroundColor: button.variant === 'outlined' ? 'transparent' : button.backgroundColor || theme.primaryColor, borderColor: button.borderColor || theme.primaryColor, borderWidth: button.borderWidth || 0, borderRadius: button.borderRadius || 12, height: button.height || 52 }]}><Text style={{ color: button.textColor || '#fff' }}>SHOP NOW</Text></View>}
-      </View>
-    </View>
-  );
-}
-
-function Detail({ label, value }: { label: string; value: string }) {
-  return <View style={styles.detail}><Text style={styles.label}>{label}</Text><Text style={styles.value}>{value}</Text></View>;
-}
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F8FAFC',
-  },
-  hero: { paddingTop: 72, paddingHorizontal: 24, paddingBottom: 36 },
-  productName: { color: '#FFFFFF', fontSize: 30, fontWeight: '700' },
-  title: { color: '#FFFFFF', fontSize: 16, marginTop: 8, opacity: 0.9 },
-  content: { padding: 24 },
-  demoCard: { borderWidth: 1, marginBottom: 16 },
-  cta: { alignItems: 'center', justifyContent: 'center', marginTop: 24 },
-  detail: { borderBottomColor: '#E2E8F0', borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 16 },
-  label: { color: '#64748B', fontSize: 13, fontWeight: '600', textTransform: 'uppercase' },
-  value: { color: '#0F172A', fontSize: 17, marginTop: 5 },
-});
-
-export default App;
+import React,{useState}from'react';import{Pressable,SafeAreaView,ScrollView,StatusBar,StyleSheet,Text,View}from'react-native';import appConfig from'./src/generated/appConfig';import{AppThemeProvider}from'./src/theme/ThemeProvider';import{useAppTheme}from'./src/theme/useAppTheme';import{AppButton}from'./src/components/AppButton';import{AppCard}from'./src/components/AppCard';
+const products=[{name:'Fresh Tomatoes',price:'₹45',icon:'🍅',rating:'4.8',description:'Farm fresh tomatoes, picked for everyday cooking.'},{name:'Organic Milk',price:'₹68',icon:'🥛',rating:'4.7',description:'Fresh, creamy milk delivered daily.'},{name:'Potato Chips',price:'₹30',icon:'🥔',rating:'4.5',description:'Crisp salted potato chips for snack time.'},{name:'Orange Juice',price:'₹95',icon:'🍊',rating:'4.9',description:'Bright and refreshing orange juice.'}];const categories=[['🥬','Vegetables'],['🥛','Dairy'],['🍿','Snacks'],['🥤','Drinks']];
+function Header({back,onBack}:any){const t=useAppTheme(),primary=t.components.header.variant==='primary';return <View style={[s.header,{backgroundColor:primary?t.colors.primary:t.colors.background,borderColor:t.colors.border,borderBottomWidth:primary?0:1}]}>{back&&<Pressable onPress={onBack}><Text style={{color:primary?t.colors.onPrimary:t.colors.primary,fontSize:25}}>‹</Text></Pressable>}<View style={{flex:1}}><Text style={[s.app,{color:primary?t.colors.onPrimary:t.colors.textPrimary}]}>{appConfig.appName}</Text>{!back&&<Text style={{color:primary?t.colors.onPrimary:t.colors.textSecondary}}>Your everyday store</Text>}</View>{!back&&<Text>🛒</Text>}</View>}
+function Product({p,open}:any){const t=useAppTheme(),list=t.screens.home?.productLayout==='list';return <Pressable onPress={()=>open(p)}><AppCard style={[s.product,list&&s.listProduct]}><View style={[s.image,{height:list?64:104,backgroundColor:`${t.colors.secondary}28`}]}><Text style={{fontSize:list?30:42}}>{p.icon}</Text></View><View style={{flex:1}}><Text style={{color:t.colors.textPrimary,fontWeight:'700'}}>{p.name}</Text><Text style={{color:t.colors.primary,fontWeight:'800',marginVertical:4}}>{p.price}</Text><AppButton title="Add" onPress={()=>{}}/></View></AppCard></Pressable>}
+function Home({open}:any){const t=useAppTheme(),h=t.screens.home||{},grid=h.categoryLayout!=='horizontal',cols=h.categoryColumns||4,productGrid=h.productLayout!=='list';return <SafeAreaView style={[s.root,{backgroundColor:t.colors.background}]}><Header/><ScrollView contentContainerStyle={{padding:t.spacing.sm,gap:t.spacing.md}}>{h.showBanner!==false&&<View style={[s.banner,{backgroundColor:t.colors.secondary,borderRadius:t.radius.lg}]}><Text style={[s.bannerTitle,{color:t.colors.textPrimary}]}>Fresh picks, delivered today</Text><Text style={{color:t.colors.textPrimary}}>Explore our popular essentials</Text></View>}<Text style={[s.section,{color:t.colors.textPrimary}]}>Shop by category</Text><View style={[s.categories,grid&&{flexWrap:'wrap'}]}>{categories.map(x=><View key={x[1]} style={grid?{width:`${100/cols}%`}:{width:88}}><View style={s.category}><View style={[s.categoryIcon,{backgroundColor:`${t.colors.secondary}33`,borderRadius:t.radius.sm}]}><Text>{x[0]}</Text></View><Text style={{color:t.colors.textPrimary,fontSize:12}}>{x[1]}</Text></View></View>)}</View><Text style={[s.section,{color:t.colors.textPrimary}]}>Popular products</Text><View style={[s.products,productGrid&&{flexWrap:'wrap'}]}>{products.map(p=><View key={p.name} style={productGrid?{width:`${100/(h.productColumns||2)}%`,padding:4}:{width:'100%',padding:4}}><Product p={p} open={open}/></View>)}</View></ScrollView></SafeAreaView>}
+function Details({p,back}:any){const t=useAppTheme(),d=t.screens.productDetails||{},body=<ScrollView contentContainerStyle={{padding:t.spacing.md,gap:t.spacing.sm}}><View style={[s.detailImage,{height:d.imageStyle==='compact'?150:280,backgroundColor:`${t.colors.secondary}28`,borderRadius:t.radius.lg}]}><Text style={{fontSize:d.imageStyle==='compact'?70:110}}>{p.icon}</Text></View><Text style={[s.detailName,{color:t.colors.textPrimary}]}>{p.name}</Text><Text style={{color:t.colors.primary,fontWeight:'800',fontSize:22}}>{p.price}</Text>{d.showRating!==false&&<Text style={{color:t.colors.textSecondary}}>★ {p.rating} customer rating</Text>}{d.showDescription!==false&&<Text style={{color:t.colors.textSecondary,lineHeight:22}}>{p.description}</Text>}{!d.stickyAddButton&&<AppButton title="Add to Cart" onPress={()=>{}}/>}</ScrollView>;return <SafeAreaView style={[s.root,{backgroundColor:t.colors.background}]}><Header back onBack={back}/>{body}{d.stickyAddButton&&<View style={[s.sticky,{backgroundColor:t.colors.surface,borderColor:t.colors.border}]}><AppButton title="Add to Cart" onPress={()=>{}}/></View>}</SafeAreaView>}
+function Store(){const[p,setP]=useState<any>(null),t=useAppTheme();return <><StatusBar backgroundColor={t.colors.primary} barStyle="light-content"/>{p?<Details p={p} back={()=>setP(null)}/>:<Home open={setP}/>}</>};export default function App(){return <AppThemeProvider config={appConfig}><Store/></AppThemeProvider>};const s=StyleSheet.create({root:{flex:1},header:{minHeight:76,padding:18,flexDirection:'row',alignItems:'center',gap:14},app:{fontSize:20,fontWeight:'800'},banner:{padding:20},bannerTitle:{fontSize:22,fontWeight:'800',marginBottom:6},section:{fontSize:18,fontWeight:'800'},categories:{flexDirection:'row',gap:4},category:{alignItems:'center',gap:7,paddingVertical:4},categoryIcon:{height:48,width:48,alignItems:'center',justifyContent:'center'},products:{gap:4},product:{gap:10},listProduct:{flexDirection:'row'},image:{alignItems:'center',justifyContent:'center',borderRadius:10,marginBottom:8},detailImage:{alignItems:'center',justifyContent:'center'},detailName:{fontSize:27,fontWeight:'800'},sticky:{padding:16,borderTopWidth:1}});
