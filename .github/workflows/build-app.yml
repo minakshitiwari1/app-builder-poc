@@ -36,15 +36,31 @@ jobs:
       ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
 
     steps:
+      - name: Normalize and validate build API URL
+        shell: bash
+        run: |
+          set -euo pipefail
+          RAW_BUILD_API_URL="$BUILD_API_URL"
+          BUILD_API_URL="$(printf '%s' "$RAW_BUILD_API_URL" | tr -d '\r\n' | sed 's:/*$::')"
+
+          if [[ ! "$BUILD_API_URL" =~ ^https:// ]] || [[ "$BUILD_API_URL" =~ [[:space:]\[\]\(\)] ]]; then
+            echo "Invalid BUILD_API_URL configuration"
+            exit 1
+          fi
+
+          printf 'BUILD_API_URL=<%q>\n' "$BUILD_API_URL"
+          printf 'BUILD_API_URL=%s\n' "$BUILD_API_URL" >> "$GITHUB_ENV"
+
       - name: Mark build as building
         shell: bash
         run: |
           set -euo pipefail
+          STATUS_URL="${BUILD_API_URL}/api/ci/builds/${BUILD_ID}/status"
           curl --fail --silent --show-error --request POST \
             --header "Authorization: Bearer $STATUS_TOKEN" \
             --header "Content-Type: application/json" \
             --data '{"status":"BUILDING"}' \
-            "$BUILD_API_URL/api/ci/builds/$BUILD_ID/status"
+            "$STATUS_URL"
 
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -69,9 +85,10 @@ jobs:
           fi
 
           config_file="$RUNNER_TEMP/build-config.json"
+          CONFIG_URL="${BUILD_API_URL}/api/ci/builds/${BUILD_ID}/config"
           status_code=$(curl --silent --show-error --output "$config_file" --write-out '%{http_code}' \
             --header "Authorization: Bearer $CI_TOKEN" \
-            "$BUILD_API_URL/api/ci/builds/$BUILD_ID/config")
+            "$CONFIG_URL")
 
           if [ "$status_code" != "200" ]; then
             echo "The build configuration API returned HTTP $status_code."
@@ -118,7 +135,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p mobile-app/build-assets
-          download_asset() { local key="$1" output="$2"; local id; id=$(jq -r ".config.branding.${key}.assetId // empty" mobile-app/build-config.json); if [ -n "$id" ]; then curl --fail --silent --show-error "$BUILD_API_URL/assets/$id.png" --output "$output"; test -s "$output"; fi; }
+          download_asset() { local key="$1" output="$2"; local id asset_url; id=$(jq -r ".config.branding.${key}.assetId // empty" mobile-app/build-config.json); if [ -n "$id" ]; then asset_url="${BUILD_API_URL}/assets/${id}.png"; curl --fail --silent --show-error "$asset_url" --output "$output"; test -s "$output"; fi; }
           download_asset appIconAsset mobile-app/build-assets/app-icon.png
           download_asset splashAsset mobile-app/build-assets/splash.png
 
@@ -167,18 +184,20 @@ jobs:
         if: success()
         shell: bash
         run: |
+          STATUS_URL="${BUILD_API_URL}/api/ci/builds/${BUILD_ID}/status"
           curl --fail --silent --show-error --request POST \
             --header "Authorization: Bearer $STATUS_TOKEN" \
             --header "Content-Type: application/json" \
             --data '{"status":"BUILT"}' \
-            "$BUILD_API_URL/api/ci/builds/$BUILD_ID/status"
+            "$STATUS_URL"
 
       - name: Mark build as failed
         if: failure()
         shell: bash
         run: |
+          STATUS_URL="${BUILD_API_URL}/api/ci/builds/${BUILD_ID}/status"
           curl --silent --show-error --request POST \
             --header "Authorization: Bearer $STATUS_TOKEN" \
             --header "Content-Type: application/json" \
             --data '{"status":"FAILED","failureReason":"GitHub Actions build failed"}' \
-            "$BUILD_API_URL/api/ci/builds/$BUILD_ID/status" || true
+            "$STATUS_URL" || true
