@@ -98,6 +98,15 @@ jobs:
             "$RUNNER_TEMP/build-config.json" > /dev/null
           jq '.data' "$RUNNER_TEMP/build-config.json" > mobile-app/build-config.json
 
+      - name: Download configured build assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p mobile-app/build-assets
+          download_asset() { local key="$1" output="$2"; local id; id=$(jq -r ".config.branding.${key}.assetId // empty" mobile-app/build-config.json); if [ -n "$id" ]; then curl --fail --silent --show-error "$BUILD_API_URL/assets/$id.png" --output "$output"; test -s "$output"; fi; }
+          download_asset appIconAsset mobile-app/build-assets/app-icon.png
+          download_asset splashAsset mobile-app/build-assets/splash.png
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:

@@ -5,6 +5,7 @@ const cors = require('cors');
 
 const buildRoutes = require('./routes/buildRoutes');
 const connectDatabase = require('./config/database');
+const { assetsDirectory } = require('./services/assetService');
 
 const app = express();
 
@@ -12,6 +13,7 @@ const PORT = process.env.PORT || 4000;
 
 app.use(cors());
 app.use(express.json());
+app.use('/assets', express.static(assetsDirectory));
 
 app.get('/health', (req, res) => {
   res.json({

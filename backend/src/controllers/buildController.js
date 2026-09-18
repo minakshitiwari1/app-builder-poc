@@ -1,5 +1,6 @@
 const buildService = require('../services/buildService');
 const githubService = require('../services/githubService');
+const { assertAssetReference } = require('../services/assetService');
 
 const VALID_PLATFORMS = ['android', 'ios'];
 
@@ -13,6 +14,8 @@ const saveBuild = async (req, res) => {
         message: 'appName is required',
       });
     }
+    await assertAssetReference(config.branding?.appIconAsset);
+    await assertAssetReference(config.branding?.splashAsset);
 
     const build = await buildService.createBuild(config);
 
