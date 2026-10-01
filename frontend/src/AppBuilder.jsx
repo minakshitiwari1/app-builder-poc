@@ -55,31 +55,46 @@ export default function AppBuilder({ meta, settings, user, openBuilds }) {
   const [status, setStatus] = useState({});
   const [attempted, setAttempted] = useState(false);
   const [accounts, setAccounts] = useState([]);
+  const [onboarding, setOnboarding] = useState(null);
   const [access, setAccess] = useState(null);
 
   const say = (section, text, error = false) => setStatus(current => ({ ...current, [section]: { text, error } }));
 
+  const fetchLaunchSetup = useCallback(
+    () => Promise.all([api.storeAccounts(settings.retailId), api.onboarding(settings.retailId)]),
+    [settings.retailId]);
+
   const loadAccounts = useCallback(async () => {
     try {
-      setAccounts(await api.storeAccounts(settings.retailId));
+      const [list, checklist] = await fetchLaunchSetup();
+      setAccounts(list);
+      setOnboarding(checklist);
     } catch (error) {
       say('apps', error.message, true);
     }
-  }, [settings.retailId]);
+  }, [fetchLaunchSetup]);
 
   useEffect(() => {
     let active = true;
-    api.storeAccounts(settings.retailId)
-      .then(list => active && setAccounts(list))
+    fetchLaunchSetup()
+      .then(([list, checklist]) => {
+        if (!active) return;
+        setAccounts(list);
+        setOnboarding(checklist);
+      })
       .catch(error => active && say('apps', error.message, true));
     return () => { active = false; };
-  }, [settings.retailId]);
+  }, [fetchLaunchSetup]);
 
+  // Industry-standard gates: create and test builds once Pallet is invited (or confirmed);
+  // production only after access is confirmed.
   const gateOn = meta.storeAccounts?.required !== false;
-  const verified = storeType => accounts.some(a => a.storeType === storeType && a.status === 'VERIFIED');
-  const canCreate = !gateOn || accounts.some(a => a.status === 'VERIFIED');
+  const statusOf = storeType => accounts.find(a => a.storeType === storeType)?.status;
+  const connected = storeType => ['INVITE_SENT', 'VERIFIED'].includes(statusOf(storeType));
+  const canCreate = !gateOn || accounts.some(a => ['INVITE_SENT', 'VERIFIED'].includes(a.status));
   const publishStore = STORE_FOR_PLATFORM[release.platform];
-  const canPublish = !gateOn || verified(publishStore);
+  const production = release.environment === 'PRODUCTION';
+  const canPublish = !gateOn || (production ? statusOf(publishStore) === 'VERIFIED' : connected(publishStore));
 
   const loadApps = useCallback(async () => {
     try {
@@ -230,11 +245,11 @@ export default function AppBuilder({ meta, settings, user, openBuilds }) {
         </div>
         <Status state={status.apps} />
 
-        <StoreAccounts meta={meta} retailId={settings.retailId} user={user} accounts={accounts} onChanged={loadAccounts} />
+        <StoreAccounts meta={meta} retailId={settings.retailId} user={user} accounts={accounts} onboarding={onboarding} onChanged={loadAccounts} />
 
         <h2>1. App details</h2>
         {!app && !canCreate && (
-          <p className="gate-note">Verify the merchant's Google Play or Apple account in step 0 before creating the app.</p>
+          <p className="gate-note">Invite Pallet to your Google Play or Apple account in step 0 before creating the app.</p>
         )}
         {field('appName', 'App name', { placeholder: 'Amma Store' })}
         {field('merchantKey', 'Merchant key', { disabled: locked, placeholder: 'Generated from the app name', help: meta.identityRules.merchantKey.description })}
@@ -302,7 +317,9 @@ export default function AppBuilder({ meta, settings, user, openBuilds }) {
             </label>
           </div>
           {!canPublish && (
-            <p className="gate-note">Publishing {release.platform} needs a verified {STORE_NAME[publishStore]} account (step 0).</p>
+            <p className="gate-note">{production && connected(publishStore)
+              ? `Production needs Pallet to confirm access to your ${STORE_NAME[publishStore]} account (step 0). Test builds (DEVELOPMENT, STAGE) work meanwhile.`
+              : `Invite Pallet to your ${STORE_NAME[publishStore]} account first (step 0).`}</p>
           )}
           {release.environment === 'PRODUCTION' && canPublish && (
             <p><small>

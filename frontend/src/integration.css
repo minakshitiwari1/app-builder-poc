@@ -16,6 +16,24 @@
 .store-facts b { display: block; font-size: 12px; color: #62728a; }
 .store-form ol { padding-left: 18px; color: #526079; margin: 10px 0; }
 .store-form li { margin: 4px 0; }
+.checklist { border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px 16px; margin: 10px 0 14px; background: #fafcff; }
+.checklist-head { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
+.checklist-head b, .checklist-head small { display: block; }
+.progress { flex: 1; min-width: 160px; max-width: 320px; height: 8px; background: #e2e8f0; border-radius: 999px; overflow: hidden; }
+.progress span { display: block; height: 100%; background: #0874f7; transition: width .3s; }
+ol.steps { list-style: none; padding: 0; margin: 12px 0; display: grid; gap: 6px; }
+ol.steps li { display: flex; gap: 10px; align-items: baseline; }
+.step-icon { width: 20px; height: 20px; flex: none; display: inline-grid; place-items: center; border-radius: 50%; font-size: 12px; font-weight: 800; background: #e2e8f0; color: #526079; }
+.step-done .step-icon { background: #d1fae5; color: #087248; }
+.step-waiting .step-icon { background: #fef3c7; color: #7a5200; }
+.step-problem .step-icon { background: #fee2e2; color: #c33; }
+.step-skipped { color: #a0abbd; }
+.checklist-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 4px 18px; border-top: 1px solid #e2e8f0; padding-top: 10px; margin-top: 6px; }
+.checklist-form label { margin: 6px 0; font-weight: 600; }
+.segmented { display: flex; gap: 4px; background: #f2f5f9; padding: 4px; border-radius: 9px; margin: 10px 0; }
+.segmented button { flex: 1; border: 0; background: transparent; border-radius: 7px; padding: 8px; font-weight: 700; color: #526079; cursor: pointer; }
+.segmented button.selected { background: #fff; color: #0874f7; box-shadow: 0 1px 3px #10203a22; }
+.waiting-note { background: #fef3c7; color: #7a5200; border-radius: 8px; padding: 8px 12px; }
 .invite-email { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; background: #f5f8fc; border-radius: 8px; padding: 10px 12px; margin: 8px 0; }
 .invite-email small { flex-basis: 100%; }
 .invite-email code { overflow-wrap: anywhere; font-weight: 700; flex: 1; min-width: 0; }

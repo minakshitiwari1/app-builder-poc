@@ -8,7 +8,13 @@ export const API_BASE = (import.meta.env.VITE_API_BASE || 'http://localhost:8081
 const CI_TOKEN = import.meta.env.VITE_CI_TOKEN || '';
 export const canSimulateCi = CI_TOKEN.length > 0;
 
+// Only for local testing: Pallet staff token for the Launch Console. In production the
+// Launch Console belongs in Pallet's internal admin, behind staff login.
+const STAFF_TOKEN = import.meta.env.VITE_STAFF_TOKEN || '';
+export const canUseLaunchConsole = STAFF_TOKEN.length > 0;
+
 const http = axios.create({ baseURL: `${API_BASE}/app-builder/v1` });
+const staff = axios.create({ baseURL: `${API_BASE}/app-builder/v1/launch`, headers: { 'X-App-Builder-Staff-Token': STAFF_TOKEN } });
 const ci = axios.create({ baseURL: `${API_BASE}/app-builder/ci/v1`, headers: { 'X-App-Builder-Token': CI_TOKEN } });
 
 // retail-service answers {es, message, statusCode, data}; errors carry a readable message.
@@ -50,6 +56,16 @@ export const api = {
   dashboard: params => unwrap(http.get('/builds', { params: clean(params) })),
   getBuild: buildId => unwrap(http.get(`/builds/${buildId}`)),
   retryDispatch: buildId => unwrap(http.post(`/builds/${buildId}/dispatch`)),
+
+  onboarding: retailId => unwrap(http.get('/onboarding', { params: { retailId } })),
+  updateOnboarding: (answers, user) => unwrap(http.put('/onboarding', { ...answers, ...by(user) })),
+  connectAppleInvite: (retailId, teamId, invitedConfirmed, user) =>
+    unwrap(http.post('/store-accounts/APPLE/invite', null, { params: { retailId, teamId, invitedConfirmed, ...by(user) } })),
+  launchQueue: () => unwrap(staff.get('/queue')),
+  launchConfirm: (retailId, storeType, staffUser) =>
+    unwrap(staff.post(`/store-accounts/${storeType}/confirm`, null, { params: { retailId, staffUser } })),
+  launchProblem: (retailId, storeType, reason, staffUser) =>
+    unwrap(staff.post(`/store-accounts/${storeType}/problem`, null, { params: { retailId, reason, staffUser } })),
 
   storeAccounts: retailId => unwrap(http.get('/store-accounts', { params: { retailId } })),
   // Google Play: no key file. The merchant invites Pallet's service account and gives the developer ID.

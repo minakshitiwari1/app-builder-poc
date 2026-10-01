@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { API_BASE, api } from './api';
+import { API_BASE, api, canUseLaunchConsole } from './api';
 import AppBuilder from './AppBuilder';
 import Builds from './Builds';
+import LaunchConsole from './LaunchConsole';
 import './App.css';
 import './integration.css';
 
@@ -41,6 +42,12 @@ export default function App() {
         <p className="menu-label">WORKSPACE</p>
         <button className={page === 'builder' ? 'active' : ''} onClick={() => setPage('builder')}><span>✦</span> App Builder</button>
         <button className={page === 'builds' ? 'active' : ''} onClick={() => setPage('builds')}><span>▦</span> Builds</button>
+        {canUseLaunchConsole && (
+          <>
+            <p className="menu-label">PALLET STAFF</p>
+            <button className={page === 'launch' ? 'active' : ''} onClick={() => setPage('launch')}><span>✓</span> Launch Console</button>
+          </>
+        )}
         <div className="nav-bottom">
           <span className="avatar">{settings.userName.slice(0, 1).toUpperCase()}</span>
           <div><b>{settings.userName}</b><small>{settings.userId}</small></div>
@@ -65,9 +72,11 @@ export default function App() {
         <main>
           {error && <p className="error">{error}</p>}
           {!meta && !error && <p>Connecting to retail-service…</p>}
-          {meta && (page === 'builder'
-            ? <AppBuilder key={settings.retailId} meta={meta} settings={settings} user={user} openBuilds={() => setPage('builds')} />
-            : <Builds key={settings.retailId} meta={meta} settings={settings} />)}
+          {meta && page === 'builder' && (
+            <AppBuilder key={settings.retailId} meta={meta} settings={settings} user={user} openBuilds={() => setPage('builds')} />
+          )}
+          {meta && page === 'builds' && <Builds key={settings.retailId} meta={meta} settings={settings} />}
+          {meta && page === 'launch' && canUseLaunchConsole && <LaunchConsole user={user} />}
         </main>
       </div>
     </div>
