@@ -1,38 +1,36 @@
 import { useState } from 'react';
-import { api, formatDate } from './api';
+import { api, copyText, formatDate } from './api';
+import { Alert, Icon, Pill, StoreLogo } from './ui';
 
 const STATUS = {
-  NOT_CONNECTED: { label: 'Not connected', badge: 'saved' },
-  INVITE_SENT: { label: 'Waiting for Pallet', badge: 'queued' },
-  VERIFIED: { label: 'Access confirmed', badge: 'built' },
-  FAILED: { label: 'Needs attention', badge: 'failed' },
-  REVOKED: { label: 'Disconnected', badge: 'saved' },
+  NOT_CONNECTED: { label: 'Not connected', tone: 'neutral' },
+  INVITE_SENT: { label: 'Waiting for Pallet', tone: 'warning' },
+  VERIFIED: { label: 'Access confirmed', tone: 'success' },
+  FAILED: { label: 'Needs attention', tone: 'danger' },
+  REVOKED: { label: 'Disconnected', tone: 'neutral' },
 };
 
-const STEP_ICON = { DONE: '✓', TODO: '○', WAITING: '⏳', PROBLEM: '!', SKIPPED: '–' };
+const STEP_ICON = { DONE: <Icon name="check" size={13} />, TODO: '', WAITING: <Icon name="clock" size={13} />, PROBLEM: '!', SKIPPED: '–' };
 const STAGE = {
-  SETUP: 'Set up your store accounts',
-  INVITE_PALLET: 'Invite Pallet to your store accounts',
-  WAITING_FOR_PALLET: 'Waiting for Pallet to confirm access',
-  NEEDS_ATTENTION: 'Something needs your attention',
-  READY: 'Ready to publish',
-};
-
-const copy = async (text, setMessage) => {
-  try {
-    await navigator.clipboard.writeText(text);
-    setMessage({ text: 'Copied.' });
-  } catch {
-    setMessage({ text: 'Copy failed; select the text and copy it.', error: true });
-  }
+  SETUP: ['Set up your store accounts', 'info'],
+  INVITE_PALLET: ['Invite Pallet to your store accounts', 'info'],
+  WAITING_FOR_PALLET: ['Waiting for Pallet to confirm access', 'warning'],
+  NEEDS_ATTENTION: ['Something needs your attention', 'danger'],
+  READY: ['Ready to publish', 'success'],
 };
 
 function InviteEmail({ email, role, missingHint, setMessage }) {
   return (
     <div className="invite-email">
-      <small>Invite this account ({role})</small>
-      <code>{email || missingHint}</code>
-      {email && <button className="secondary" type="button" onClick={() => copy(email, setMessage)}>Copy</button>}
+      <span className="invite-label">Invite this account · {role}</span>
+      <div className="invite-row">
+        <code>{email || missingHint}</code>
+        {email && (
+          <button className="btn btn-secondary btn-sm" type="button" onClick={() => copyText(email, setMessage)}>
+            <Icon name="copy" size={14} /> Copy
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -92,57 +90,59 @@ function StoreCard({ meta, account, retailId, user, onChanged }) {
 
   const id = key => `${account.storeType}-${key}`;
   const inviteChecked = (
-    <label htmlFor={id('invited')} className="checkbox">
+    <label htmlFor={id('invited')} className="check">
       <input id={id('invited')} type="checkbox" checked={form.invited} onChange={e => setForm({ ...form, invited: e.target.checked })} />
-      I have sent the invite
+      <span>I have sent the invite</span>
     </label>
   );
 
   return (
-    <article className="store-card">
+    <article className={`store-card status-${status.tone}`}>
       <div className="store-head">
-        <div><h3>{google ? 'Google Play' : 'Apple App Store'}</h3><small>Needed to publish {google ? 'Android' : 'iOS'} apps</small></div>
-        <span className={`badge ${status.badge}`}>{status.label}</span>
+        <StoreLogo storeType={account.storeType} />
+        <div className="store-title"><h3>{google ? 'Google Play' : 'Apple App Store'}</h3><small>Needed to publish {google ? 'Android' : 'iOS'} apps</small></div>
+        <Pill tone={status.tone}>{status.label}</Pill>
       </div>
 
       {account.status === 'INVITE_SENT' && (
-        <p className="waiting-note">Pallet's launch team will accept your invite and confirm access, usually within one working day.
-          You can create the app and run test builds meanwhile.</p>
+        <Alert tone="warning">Pallet's launch team will accept your invite and confirm access, usually within one working day.
+          You can create the app and run test builds meanwhile.</Alert>
       )}
 
       {connected && (
-        <div className="facts store-facts">
-          <p><b>{google ? 'Developer account ID' : 'Team ID'}</b>{account.developerAccountId || '—'}</p>
-          <p><b>Connected by</b>{account.connectionMethod === 'API_KEY' ? 'API key' : 'Invite'}</p>
-          {account.apiKeyStored && <p><b>API key</b>{account.keyId} (issuer {account.accountLabel})</p>}
-          {account.connectionMethod !== 'API_KEY' && <p><b>Invited Pallet account</b>{account.accountLabel}</p>}
+        <dl className="facts single">
+          <div><dt>{google ? 'Developer account ID' : 'Team ID'}</dt><dd>{account.developerAccountId || '—'}</dd></div>
+          <div><dt>Connected by</dt><dd>{account.connectionMethod === 'API_KEY' ? 'API key' : 'Invite'}</dd></div>
+          {account.apiKeyStored && <div><dt>API key</dt><dd>{account.keyId} (issuer {account.accountLabel})</dd></div>}
+          {account.connectionMethod !== 'API_KEY' && <div><dt>Invited Pallet account</dt><dd>{account.accountLabel}</dd></div>}
           {account.accessConfirmedAt && (
-            <p><b>Access confirmed</b>{formatDate(account.accessConfirmedAt)} · {account.accessConfirmedBy === 'automatic-check' ? 'automatically' : `by ${account.accessConfirmedBy}`}</p>
+            <div><dt>Access confirmed</dt><dd>{formatDate(account.accessConfirmedAt)} · {account.accessConfirmedBy === 'automatic-check' ? 'automatically' : `by ${account.accessConfirmedBy}`}</dd></div>
           )}
-          <p><b>Last checked</b>{formatDate(account.lastCheckedAt)}{account.verificationMode === 'MOCK' && ' (local test mode)'}</p>
-        </div>
+          <div><dt>Last checked</dt><dd>{formatDate(account.lastCheckedAt)}{account.verificationMode === 'MOCK' && ' (local test mode)'}</dd></div>
+        </dl>
       )}
-      {account.lastError && <p className="error">{account.lastError}</p>}
+      {account.lastError && <Alert tone="danger">{account.lastError}</Alert>}
 
       {showForm ? (
         <div className="store-form">
           {!google && (
             <div className="segmented" role="tablist" aria-label="How to connect Apple">
-              <button type="button" className={appleMethod === 'invite' ? 'selected' : ''} onClick={() => setAppleMethod('invite')}>Invite Pallet (recommended)</button>
-              <button type="button" className={appleMethod === 'key' ? 'selected' : ''} onClick={() => setAppleMethod('key')}>Use an API key</button>
+              <button type="button" role="tab" aria-selected={appleMethod === 'invite'} className={appleMethod === 'invite' ? 'selected' : ''} onClick={() => setAppleMethod('invite')}>Invite Pallet (recommended)</button>
+              <button type="button" role="tab" aria-selected={appleMethod === 'key'} className={appleMethod === 'key' ? 'selected' : ''} onClick={() => setAppleMethod('key')}>Use an API key</button>
             </div>
           )}
 
           {google && (
             <>
-              <ol>
+              <ol className="numbered">
                 <li>Open Play Console &gt; <b>Users and permissions</b> &gt; <b>Invite new users</b>.</li>
                 <li>Invite the account below with <b>{store.googlePlayInviteRole || 'Admin'}</b> permissions and send the invite.</li>
                 <li>Copy your developer account ID from the Play Console URL: play.google.com/console/u/0/developers/<b>ID</b>/…</li>
               </ol>
               <InviteEmail email={store.googlePlayInviteEmail} role={store.googlePlayInviteRole || 'Admin'}
                 missingHint="Not configured: set APP_BUILDER_GOOGLE_PLAY_KEY_FILE on retail-service" setMessage={setMessage} />
-              <label htmlFor={id('developer')}>Developer account ID
+              <label htmlFor={id('developer')} className="field">
+                <span className="field-label">Developer account ID</span>
                 <input id={id('developer')} inputMode="numeric" value={form.developerAccountId} placeholder="4726473283492637482"
                   onChange={e => setForm({ ...form, developerAccountId: e.target.value })} />
               </label>
@@ -152,14 +152,15 @@ function StoreCard({ meta, account, retailId, user, onChanged }) {
 
           {!google && appleMethod === 'invite' && (
             <>
-              <ol>
+              <ol className="numbered">
                 <li>Open App Store Connect &gt; <b>Users and Access</b> &gt; <b>+</b>.</li>
                 <li>Invite the Apple ID below with the <b>Admin</b> role and tick <b>Certificates, Identifiers &amp; Profiles</b>.</li>
                 <li>Copy your Team ID from developer.apple.com &gt; Account &gt; <b>Membership details</b>.</li>
               </ol>
               <InviteEmail email={store.appleInviteEmail} role={store.appleInviteRole || 'Admin'}
                 missingHint="Not configured: set APP_BUILDER_APPLE_INVITE_EMAIL on retail-service" setMessage={setMessage} />
-              <label htmlFor={id('team')}>Team ID
+              <label htmlFor={id('team')} className="field">
+                <span className="field-label">Team ID</span>
                 <input id={id('team')} value={form.teamId} placeholder="A1B2C3D4E5" onChange={e => setForm({ ...form, teamId: e.target.value.toUpperCase() })} />
               </label>
               {inviteChecked}
@@ -168,37 +169,39 @@ function StoreCard({ meta, account, retailId, user, onChanged }) {
 
           {!google && appleMethod === 'key' && (
             <>
-              <ol>
+              <ol className="numbered">
                 <li>App Store Connect &gt; Users and Access &gt; Integrations &gt; <b>Keys</b>: generate a key with the App Manager role.</li>
                 <li>Download the .p8 file (Apple allows this only once) and note the Key ID and Issuer ID.</li>
               </ol>
-              <div className="theme-grid">
-                <label htmlFor={id('keyId')}>Key ID<input id={id('keyId')} value={form.keyId} placeholder="2X9R4HXF34" onChange={e => setForm({ ...form, keyId: e.target.value })} /></label>
-                <label htmlFor={id('issuerId')}>Issuer ID<input id={id('issuerId')} value={form.issuerId} placeholder="57246542-96fe-1a63-e053-0824d011072a" onChange={e => setForm({ ...form, issuerId: e.target.value })} /></label>
-                <label htmlFor={id('teamIdKey')}>Team ID <small>(optional)</small><input id={id('teamIdKey')} value={form.teamId} onChange={e => setForm({ ...form, teamId: e.target.value.toUpperCase() })} /></label>
+              <div className="form-grid">
+                <label htmlFor={id('keyId')} className="field"><span className="field-label">Key ID</span><input id={id('keyId')} value={form.keyId} placeholder="2X9R4HXF34" onChange={e => setForm({ ...form, keyId: e.target.value })} /></label>
+                <label htmlFor={id('issuerId')} className="field"><span className="field-label">Issuer ID</span><input id={id('issuerId')} value={form.issuerId} placeholder="57246542-96fe-1a63-e053-0824d011072a" onChange={e => setForm({ ...form, issuerId: e.target.value })} /></label>
+                <label htmlFor={id('teamIdKey')} className="field"><span className="field-label">Team ID <small>(optional)</small></span><input id={id('teamIdKey')} value={form.teamId} onChange={e => setForm({ ...form, teamId: e.target.value.toUpperCase() })} /></label>
+                <label htmlFor={id('file')} className="field">
+                  <span className="field-label">Private key (.p8)</span>
+                  <input id={id('file')} type="file" accept=".p8" onChange={e => setForm({ ...form, file: e.target.files[0] || null })} />
+                </label>
               </div>
-              <label htmlFor={id('file')}>
-                Private key (.p8)
-                <input id={id('file')} type="file" accept=".p8" onChange={e => setForm({ ...form, file: e.target.files[0] || null })} />
-              </label>
             </>
           )}
 
           <div className="button-row">
-            <button disabled={busy} onClick={connect}>{busy ? 'Saving…' : (google || appleMethod === 'invite') ? 'Done, I sent the invite' : 'Verify key and connect'}</button>
-            {connected && <button className="secondary" onClick={() => setShowForm(false)}>Cancel</button>}
+            <button type="button" className="btn btn-primary" disabled={busy} onClick={connect}>{busy ? 'Saving…' : (google || appleMethod === 'invite') ? 'Done, I sent the invite' : 'Verify key and connect'}</button>
+            {connected && <button type="button" className="btn btn-ghost" onClick={() => setShowForm(false)}>Cancel</button>}
           </div>
         </div>
       ) : (
         <div className="button-row">
           {connected && (google || account.apiKeyStored) && (
-            <button className="secondary" disabled={busy} onClick={() => act('Checked again.', () => api.reverifyStore(retailId, account.storeType, user))}>Verify again</button>
+            <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => act('Checked again.', () => api.reverifyStore(retailId, account.storeType, user))}>
+              <Icon name="refresh" size={16} /> Verify again
+            </button>
           )}
-          <button className="secondary" onClick={() => setShowForm(true)}>{connected ? 'Change' : 'Connect'}</button>
-          {connected && <button className="danger" disabled={busy} onClick={() => act('Disconnected.', () => api.disconnectStore(retailId, account.storeType, user))}>Disconnect</button>}
+          <button type="button" className={`btn ${connected ? 'btn-secondary' : 'btn-primary'}`} onClick={() => setShowForm(true)}>{connected ? 'Change' : 'Connect'}</button>
+          {connected && <button type="button" className="btn btn-danger-ghost" disabled={busy} onClick={() => act('Disconnected.', () => api.disconnectStore(retailId, account.storeType, user))}>Disconnect</button>}
         </div>
       )}
-      {message && <p className={message.error ? 'error' : 'ok'}>{message.text}</p>}
+      {message && <Alert tone={message.error ? 'danger' : 'success'}>{message.text}</Alert>}
     </article>
   );
 }
@@ -214,6 +217,7 @@ function Checklist({ onboarding, retailId, user, onChanged }) {
   });
   const [message, setMessage] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState(!onboarding.accountType);
 
   const save = async () => {
     setBusy(true);
@@ -230,63 +234,76 @@ function Checklist({ onboarding, retailId, user, onChanged }) {
   };
 
   const tick = (key, label) => (
-    <label htmlFor={`ob-${key}`} className="checkbox">
+    <label htmlFor={`ob-${key}`} className="check">
       <input id={`ob-${key}`} type="checkbox" checked={Boolean(answers[key])} onChange={e => setAnswers({ ...answers, [key]: e.target.checked })} />
-      {label}
+      <span>{label}</span>
     </label>
   );
   const percent = onboarding.totalSteps ? Math.round((onboarding.completedSteps / onboarding.totalSteps) * 100) : 0;
+  const [stageLabel, stageTone] = STAGE[onboarding.stage] || [onboarding.stage, 'info'];
 
   return (
     <div className="checklist">
       <div className="checklist-head">
+        <div className="ring" style={{ '--value': percent }} aria-label={`${percent}% complete`}><span>{percent}%</span></div>
         <div>
-          <b>{STAGE[onboarding.stage] || onboarding.stage}</b>
+          <b>{stageLabel}</b>
           <small>{onboarding.completedSteps} of {onboarding.totalSteps} steps done</small>
         </div>
-        <div className="progress" aria-label={`${percent}% complete`}><span style={{ width: `${percent}%` }} /></div>
+        <Pill tone={stageTone}>{onboarding.stage === 'READY' ? 'Ready' : onboarding.stage === 'WAITING_FOR_PALLET' ? 'Waiting' : onboarding.stage === 'NEEDS_ATTENTION' ? 'Action needed' : 'In progress'}</Pill>
       </div>
-      <ol className="steps">
+      <ol className="timeline">
         {onboarding.steps.map(step => (
-          <li key={step.key} className={`step-${step.status.toLowerCase()}`}>
-            <span className="step-icon">{STEP_ICON[step.status]}</span>
-            <span>{step.title}{step.detail && <small> · {step.detail}</small>}</span>
+          <li key={step.key} className={`tl-${step.status.toLowerCase()}`}>
+            <span className="tl-dot">{STEP_ICON[step.status]}</span>
+            <span className="tl-text"><b>{step.title}</b>{step.detail && <small>{step.detail}</small>}</span>
           </li>
         ))}
       </ol>
-      {onboarding.warnings.map(warning => <p key={warning} className="gate-note">{warning}</p>)}
+      {onboarding.warnings.map(warning => <Alert key={warning} tone="warning">{warning}</Alert>)}
 
-      <div className="checklist-form">
-        <div>
-          <b>Stores</b>
-          {tick('wantsAndroid', 'Google Play (Android)')}
-          {tick('wantsIos', 'App Store (iOS)')}
-        </div>
-        <div>
-          <b>Account type</b>
-          {['ORGANIZATION', 'INDIVIDUAL'].map(type => (
-            <label key={type} htmlFor={`ob-type-${type}`} className="checkbox">
-              <input id={`ob-type-${type}`} type="radio" name="accountType" checked={answers.accountType === type}
-                onChange={() => setAnswers({ ...answers, accountType: type })} />
-              {type === 'ORGANIZATION' ? 'Organization (recommended)' : 'Individual'}
-            </label>
-          ))}
-        </div>
-        <div>
-          <b>Accounts created</b>
-          {answers.wantsAndroid && tick('googleAccountCreated', 'Google Play Console account')}
-          {answers.wantsIos && tick('appleAccountCreated', 'Apple Developer Program')}
-          {answers.wantsIos && answers.accountType === 'ORGANIZATION' && (
-            <label htmlFor="ob-duns">D-U-N-S number <small>(9 digits)</small>
-              <input id="ob-duns" value={answers.dunsNumber} onChange={e => setAnswers({ ...answers, dunsNumber: e.target.value })} />
-            </label>
-          )}
-        </div>
+      <div className="checklist-edit">
+        <button type="button" className="disclosure" aria-expanded={editing} onClick={() => setEditing(!editing)}>
+          <Icon name={editing ? 'down' : 'right'} size={16} /> Your answers
+        </button>
+        {editing && (
+          <>
+            <div className="checklist-form">
+              <fieldset>
+                <legend>Which stores?</legend>
+                {tick('wantsAndroid', 'Google Play (Android)')}
+                {tick('wantsIos', 'App Store (iOS)')}
+              </fieldset>
+              <fieldset>
+                <legend>Account type</legend>
+                {['ORGANIZATION', 'INDIVIDUAL'].map(type => (
+                  <label key={type} htmlFor={`ob-type-${type}`} className="check">
+                    <input id={`ob-type-${type}`} type="radio" name="accountType" checked={answers.accountType === type}
+                      onChange={() => setAnswers({ ...answers, accountType: type })} />
+                    <span>{type === 'ORGANIZATION' ? 'Organization (recommended)' : 'Individual'}</span>
+                  </label>
+                ))}
+              </fieldset>
+              <fieldset>
+                <legend>Accounts created</legend>
+                {answers.wantsAndroid && tick('googleAccountCreated', 'Google Play Console account')}
+                {answers.wantsIos && tick('appleAccountCreated', 'Apple Developer Program')}
+                {!answers.wantsAndroid && !answers.wantsIos && <small>Choose a store first.</small>}
+                {answers.wantsIos && answers.accountType === 'ORGANIZATION' && (
+                  <label htmlFor="ob-duns" className="field">
+                    <span className="field-label">D-U-N-S number <small>(9 digits)</small></span>
+                    <input id="ob-duns" inputMode="numeric" value={answers.dunsNumber} onChange={e => setAnswers({ ...answers, dunsNumber: e.target.value })} />
+                  </label>
+                )}
+              </fieldset>
+            </div>
+            <div className="button-row">
+              <button type="button" className="btn btn-secondary" disabled={busy} onClick={save}>{busy ? 'Saving…' : 'Save answers'}</button>
+            </div>
+          </>
+        )}
+        {message && <Alert tone={message.error ? 'danger' : 'success'}>{message.text}</Alert>}
       </div>
-      <div className="button-row">
-        <button className="secondary" disabled={busy} onClick={save}>{busy ? 'Saving…' : 'Save checklist'}</button>
-      </div>
-      {message && <p className={message.error ? 'error' : 'ok'}>{message.text}</p>}
     </div>
   );
 }
@@ -294,21 +311,18 @@ function Checklist({ onboarding, retailId, user, onChanged }) {
 export default function StoreAccounts({ meta, retailId, user, accounts, onboarding, onChanged }) {
   const mock = meta.storeAccounts?.verificationMode === 'MOCK';
   const wanted = account => !onboarding || (account.storeType === 'GOOGLE_PLAY' ? onboarding.wantsAndroid : onboarding.wantsIos);
+  const shown = accounts.filter(wanted);
   return (
-    <section className="store-accounts">
-      <h2>0. Launch setup</h2>
-      <p><small>
-        Your app is published under your own Google Play and Apple developer accounts. You invite Pallet as a team member,
-        Pallet confirms access, and then your app can go live. You can design the app and run test builds while you wait.
-      </small></p>
-      {mock && <p className="mock-note">Local test mode: nothing is checked with Google or Apple.</p>}
+    <section className="store-accounts stack">
+      {mock && <Alert tone="info" title="Local test mode">Nothing is checked with Google or Apple.</Alert>}
       {onboarding && <Checklist key={JSON.stringify(onboarding)} onboarding={onboarding} retailId={retailId} user={user} onChanged={onChanged} />}
       <div className="store-grid">
-        {accounts.filter(wanted).map(account => (
+        {shown.map(account => (
           <StoreCard key={`${account.storeType}-${account.status}-${account.connectionMethod}`} meta={meta} account={account}
             retailId={retailId} user={user} onChanged={onChanged} />
         ))}
       </div>
+      {!shown.length && accounts.length > 0 && <Alert tone="info">Choose at least one store under “Your answers”.</Alert>}
     </section>
   );
 }

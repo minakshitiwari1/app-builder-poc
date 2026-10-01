@@ -33,6 +33,11 @@ const by = user => ({ updatedBy: user.id, updatedByName: user.name });
 export const api = {
   meta: () => unwrap(http.get('/meta')),
 
+  // The retail's stores (existing branch API): [{branchId, branchName}].
+  stores: retailId => axios.get(`${API_BASE}/branch/v1/names/${encodeURIComponent(retailId)}`)
+    .then(response => (response.data?.retailBranchNameBranchIdProjectionList || [])
+      .sort((a, b) => (a.branchName || '').localeCompare(b.branchName || ''))),
+
   listApps: retailId => unwrap(http.get('/apps', { params: { retailId } })),
   getApp: appId => unwrap(http.get(`/apps/${appId}`)),
   createApp: (body, user) => unwrap(http.post('/apps', { ...body, createdBy: user.id, createdByName: user.name })),
@@ -113,6 +118,15 @@ export const themeFromFields = (fields, saved) =>
     const savedValue = getPath(saved, field.path);
     return setPath(theme, field.path, savedValue ?? field.default);
   }, {});
+
+export const copyText = async (text, onResult) => {
+  try {
+    await navigator.clipboard.writeText(text);
+    onResult?.({ text: 'Copied to clipboard.' });
+  } catch {
+    onResult?.({ text: 'Copy failed; select the text and copy it.', error: true });
+  }
+};
 
 export const formatDate = value =>
   value ? new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)) : '—';

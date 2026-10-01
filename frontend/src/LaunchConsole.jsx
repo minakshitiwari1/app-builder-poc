@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
-import { api, formatDate } from './api';
+import { api, copyText, formatDate } from './api';
+import { Alert, EmptyState, Icon, Pill, Spinner, StoreLogo } from './ui';
 
 const STORE_NAME = { GOOGLE_PLAY: 'Google Play', APPLE: 'Apple' };
 
-function QueueItem({ item, staff, onDone }) {
+function QueueRow({ item, staff, onDone }) {
   const [reason, setReason] = useState('');
+  const [reporting, setReporting] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState(null);
+  const failed = item.status === 'FAILED';
 
   const act = async (label, action) => {
     setBusy(true);
@@ -22,26 +25,57 @@ function QueueItem({ item, staff, onDone }) {
     }
   };
 
+  const reasonId = `reason-${item.retailId}-${item.storeType}`;
   return (
-    <article>
-      <div>
-        <h2>{item.retailName} <small>({item.retailId})</small></h2>
-        <p>{STORE_NAME[item.storeType]} · {item.connectionMethod === 'API_KEY' ? 'API key' : 'Invite'} ·
-          {item.storeType === 'APPLE' ? ' Team ID ' : ' Developer ID '}<code>{item.developerAccountId || '—'}</code></p>
-        <small>Waiting since {formatDate(item.lastCheckedAt)} · invite to accept from {item.accountLabel}</small>
-        {item.lastError && <p className="error">{item.lastError}</p>}
-        <label htmlFor={`reason-${item.retailId}-${item.storeType}`}>Problem for the merchant <small>(only for "Report problem")</small>
-          <input id={`reason-${item.retailId}-${item.storeType}`} value={reason} placeholder="e.g. Invite not received. Please invite again with the Admin role."
-            onChange={e => setReason(e.target.value)} />
-        </label>
-        {message && <p className={message.error ? 'error' : 'ok'}>{message.text}</p>}
-      </div>
-      <div className="actions">
-        <span className={`badge ${item.status === 'FAILED' ? 'failed' : 'queued'}`}>{item.status === 'FAILED' ? 'Needs attention' : 'Waiting'}</span>
-        <button disabled={busy} onClick={() => act('Access confirmed.', () => api.launchConfirm(item.retailId, item.storeType, staff))}>Confirm access</button>
-        <button className="danger" disabled={busy || !reason.trim()} onClick={() => act('Problem sent to the merchant.', () => api.launchProblem(item.retailId, item.storeType, reason.trim(), staff))}>Report problem</button>
-      </div>
-    </article>
+    <>
+      <tr>
+        <td><b>{item.retailName}</b><small className="mono">{item.retailId}</small></td>
+        <td>
+          <span className="with-logo"><StoreLogo storeType={item.storeType} size="sm" />{STORE_NAME[item.storeType]}</span>
+          <small>{item.connectionMethod === 'API_KEY' ? 'API key' : 'Invite'}</small>
+        </td>
+        <td>
+          <span className="copy-cell">
+            <code>{item.developerAccountId || '—'}</code>
+            {item.developerAccountId && (
+              <button type="button" className="icon-button" aria-label="Copy ID" onClick={() => copyText(item.developerAccountId, setMessage)}><Icon name="copy" size={14} /></button>
+            )}
+          </span>
+          <small>{item.storeType === 'APPLE' ? 'Team ID' : 'Developer ID'} · invite to {item.accountLabel}</small>
+        </td>
+        <td>{formatDate(item.lastCheckedAt)}</td>
+        <td><Pill tone={failed ? 'danger' : 'warning'}>{failed ? 'Needs attention' : 'Waiting'}</Pill></td>
+        <td>
+          <div className="row-buttons">
+            <button type="button" className="btn btn-primary btn-sm" disabled={busy} onClick={() => act('Access confirmed.', () => api.launchConfirm(item.retailId, item.storeType, staff))}>
+              <Icon name="check" size={14} /> Confirm
+            </button>
+            <button type="button" className="btn btn-secondary btn-sm" disabled={busy} aria-expanded={reporting} onClick={() => setReporting(!reporting)}>Report problem</button>
+          </div>
+        </td>
+      </tr>
+      {(reporting || item.lastError || message) && (
+        <tr className="row-detail">
+          <td colSpan={6}>
+            {item.lastError && <Alert tone="danger" title="Last problem sent">{item.lastError}</Alert>}
+            {reporting && (
+              <div className="report-form">
+                <label htmlFor={reasonId} className="field">
+                  <span className="field-label">What should the merchant fix?</span>
+                  <input id={reasonId} value={reason} placeholder="e.g. Invite not received. Please invite again with the Admin role."
+                    onChange={e => setReason(e.target.value)} />
+                </label>
+                <button type="button" className="btn btn-danger" disabled={busy || !reason.trim()}
+                  onClick={() => act('Problem sent to the merchant.', () => api.launchProblem(item.retailId, item.storeType, reason.trim(), staff))}>
+                  Send to merchant
+                </button>
+              </div>
+            )}
+            {message && <Alert tone={message.error ? 'danger' : 'success'}>{message.text}</Alert>}
+          </td>
+        </tr>
+      )}
+    </>
   );
 }
 
@@ -65,21 +99,39 @@ export default function LaunchConsole({ user }) {
     return () => { active = false; };
   }, []);
 
+  const waiting = items?.filter(item => item.status !== 'FAILED').length ?? '–';
+  const attention = items?.filter(item => item.status === 'FAILED').length ?? '–';
+
   return (
-    <section className="builds">
-      <div className="heading">
-        <div>
-          <h1>Launch Console</h1>
-          <p>Pallet staff only. Accept the merchant's invite in Play Console or App Store Connect, check you can see their account, then confirm here.</p>
-        </div>
-        <button className="secondary" onClick={load}>Refresh</button>
+    <div className="page stack">
+      <Alert tone="info" title="How to confirm access">
+        Accept the merchant's invite in Play Console or App Store Connect, check you can see their account, then press <b>Confirm</b>.
+        If something is wrong, use <b>Report problem</b> and tell the merchant what to fix.
+      </Alert>
+      <div className="stat-grid three">
+        <div className="stat stat-warning"><span className="stat-icon"><Icon name="clock" /></span><span><b>{waiting}</b><small>Waiting</small></span></div>
+        <div className="stat stat-danger"><span className="stat-icon"><Icon name="alert" /></span><span><b>{attention}</b><small>Needs attention</small></span></div>
+        <div className="stat stat-neutral"><span className="stat-icon"><Icon name="user" /></span><span><b>{user.name}</b><small>Signed in as staff</small></span></div>
       </div>
-      {error && <p className="error">{error}</p>}
-      {!items ? <p>Loading…</p> : !items.length ? <p>Nothing waiting. All merchant invites are handled.</p> : (
-        <div className="list">
-          {items.map(item => <QueueItem key={`${item.retailId}-${item.storeType}`} item={item} staff={user.id} onDone={load} />)}
+      <section className="card">
+        <div className="toolbar">
+          <b className="toolbar-title">Access queue</b>
+          <button type="button" className="btn btn-secondary" onClick={load}><Icon name="refresh" size={16} /> Refresh</button>
         </div>
-      )}
-    </section>
+        {error && <Alert tone="danger">{error}</Alert>}
+        {!items ? <div className="pad"><Spinner /></div> : !items.length ? (
+          <EmptyState icon="shield" title="Nothing waiting">All merchant invites are handled.</EmptyState>
+        ) : (
+          <div className="table-wrap">
+            <table className="table static">
+              <thead><tr><th>Merchant</th><th>Store</th><th>Account</th><th>Waiting since</th><th>Status</th><th>Actions</th></tr></thead>
+              <tbody>
+                {items.map(item => <QueueRow key={`${item.retailId}-${item.storeType}`} item={item} staff={user.id} onDone={load} />)}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+    </div>
   );
 }

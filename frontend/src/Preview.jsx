@@ -20,16 +20,16 @@ export default function Preview({ appName, theme, iconUrl, splashUrl }) {
   return (
     <aside className="preview">
       <div className="preview-head">
-        <div><h2>Live Preview</h2><small>Updates as you edit</small></div>
-        <div className="preview-tabs">
+        <div><h2>Live preview</h2><small><span className="live-dot" /> Updates as you edit</small></div>
+        <div className="segmented compact" role="tablist" aria-label="Screen">
           {[['home', 'Home'], ['product', 'Product'], ['splash', 'Splash']].map(([id, label]) => (
-            <button key={id} className={screen === id ? 'selected' : ''} onClick={() => setScreen(id)}>{label}</button>
+            <button key={id} type="button" role="tab" aria-selected={screen === id} className={screen === id ? 'selected' : ''} onClick={() => setScreen(id)}>{label}</button>
           ))}
         </div>
       </div>
-      <div className="device-bar">
+      <div className="segmented compact device-bar" role="tablist" aria-label="Device">
         {[['phone', 'Phone'], ['compact', 'Compact'], ['tablet', 'Tablet']].map(([id, label]) => (
-          <button key={id} className={device === id ? 'selected' : ''} onClick={() => setDevice(id)}>{label}</button>
+          <button key={id} type="button" role="tab" aria-selected={device === id} className={device === id ? 'selected' : ''} onClick={() => setDevice(id)}>{label}</button>
         ))}
       </div>
       <div className="preview-stage">
