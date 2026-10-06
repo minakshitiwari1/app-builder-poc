@@ -20,8 +20,8 @@ export function validateDeveloperId(value, platform) {
   return id;
 }
 
-export function validateTheme(theme) {
-  for (const field of THEME_FIELDS) {
+export function validateTheme(theme, fields = THEME_FIELDS) {
+  for (const field of fields) {
     const value = getPath(theme, field.path);
     if (field.type === 'color' && !new RegExp(field.pattern).test(value || '')) throw new Error(`${field.label}: use a six- or eight-digit hex color.`);
     if (field.type === 'number' && (typeof value !== 'number' || !Number.isFinite(value) || value < field.min || value > field.max)) throw new Error(`${field.label}: enter a number from ${field.min} to ${field.max}.`);

@@ -1,3 +1,4 @@
+import LiveAccounts from './services/LiveAccounts';
 import { useState } from 'react';
 import { copyText } from './themeUtils';
 import { appBuilderService as demoService } from './appBuilderService';
@@ -70,6 +71,7 @@ function AccountCard({ platform, account, run }) {
 }
 
 export default function StoreAccounts({ app, workspace, permissions, run }) {
+  if (demoService.mode === 'real') return <LiveAccounts app={app} workspace={workspace} permissions={permissions} run={run} />;
   return <div className="stack"><h2>Your developer accounts</h2><p className="muted">{permissions.connectedCount} of {app.platforms.length} selected platforms connected.</p>
     {!app.platforms.length && <Alert tone="warning">Choose at least one platform in step 1.</Alert>}
     {app.platforms.map(platform => <AccountCard key={platform} platform={platform} account={workspace.accounts[platform]} run={run} />)}

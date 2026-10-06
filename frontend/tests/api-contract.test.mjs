@@ -25,8 +25,8 @@ axios.defaults.adapter = async config => {
   return { data: responseBody, status: 200, headers: {}, config };
 };
 
-async function loadApi(base = baseUrl) {
-  const env = { VITE_API_BASE: base, VITE_CI_TOKEN: variables.ciToken, VITE_STAFF_TOKEN: variables.staffToken };
+async function loadApi(base = baseUrl, overrides = {}) {
+  const env = { VITE_API_BASE: base, VITE_CI_TOKEN: variables.ciToken, VITE_STAFF_TOKEN: variables.staffToken, VITE_ACCESS_TOKEN: 'test-login-token', ...overrides };
   const compiled = source.replace("'axios'", JSON.stringify(import.meta.resolve('axios')))
     .replaceAll('import.meta.env', JSON.stringify(env));
   return import(`data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`);
@@ -143,4 +143,20 @@ test('saved theme overrides backend defaults, with metadata filling missing fiel
   const fields = [{ path: 'colors.brand', default: '#000000' }, { path: 'spacing.md', default: 8 }, { path: 'radii.md', default: 4 }];
   assert.deepEqual(themeFromFields(fields, { colors: { brand: '#FF6B00' } }, { colors: { brand: '#FFFFFF' }, spacing: { md: 16 } }),
     { colors: { brand: '#FF6B00' }, spacing: { md: 16 }, radii: { md: 4 } });
+});
+
+ test('merchant APIs use the collection at header; internal tokens never substitute for login', async () => {
+  await api.onboarding(variables.retailId);
+  assert.equal(requests.at(-1).headers.get('at'), 'test-login-token');
+  await api.stores(variables.retailId).catch(() => {});
+  assert.equal(requests.at(-1).headers.get('at'), 'test-login-token');
+  assert.equal(requests.at(-1).headers.has('X-App-Builder-Staff-Token'), false);
+});
+
+test('development uses the same-origin proxy while production keeps the configured API base', async () => {
+  const dev = await loadApi(baseUrl, { DEV: true }); await dev.api.meta();
+  assert.equal(requests.at(-1).baseURL, '/__retail/app-builder/v1');
+  assert.equal(requests.at(-1).headers.get('at'), 'test-login-token');
+  const production = await loadApi(baseUrl, { DEV: false }); await production.api.meta();
+  assert.equal(requests.at(-1).baseURL, baseUrl + '/app-builder/v1');
 });

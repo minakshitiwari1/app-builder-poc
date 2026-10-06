@@ -17,7 +17,12 @@
       "url": "{{baseUrl}}/app-builder/v1/onboarding",
       "body": {
         "mode": "raw",
-        "raw": "{\n  \"retailId\": \"{{retailId}}\",\n  \"accountType\": \"ORGANIZATION\",\n  \"wantsAndroid\": true,\n  \"wantsIos\": true,\n  \"googleAccountCreated\": true,\n  \"appleAccountCreated\": true,\n  \"dunsNumber\": \"123456789\",\n  \"updatedBy\": \"{{userId}}\",\n  \"updatedByName\": \"{{userName}}\"\n}"
+        "raw": "{\n  \"retailId\": \"{{retailId}}\",\n  \"accountType\": \"ORGANIZATION\",\n  \"wantsAndroid\": true,\n  \"wantsIos\": true,\n  \"googleAccountCreated\": true,\n  \"appleAccountCreated\": true,\n  \"dunsNumber\": \"123456789\",\n  \"updatedBy\": \"{{userId}}\",\n  \"updatedByName\": \"{{userName}}\"\n}",
+        "options": {
+          "raw": {
+            "language": "json"
+          }
+        }
       }
     },
     "connectGooglePlay": {
@@ -36,7 +41,12 @@
       "url": "{{baseUrl}}/app-builder/v1/apps",
       "body": {
         "mode": "raw",
-        "raw": "{\n  \"retailId\": \"{{retailId}}\",\n  \"defaultBranchId\": \"{{branchId}}\",\n  \"appName\": \"Demo Store\",\n  \"merchantKey\": \"{{merchantKey}}\",\n  \"createdBy\": \"{{userId}}\",\n  \"createdByName\": \"{{userName}}\"\n}"
+        "raw": "{\n  \"retailId\": \"{{retailId}}\",\n  \"defaultBranchId\": \"{{branchId}}\",\n  \"appName\": \"Demo Store\",\n  \"merchantKey\": \"{{merchantKey}}\",\n  \"createdBy\": \"{{userId}}\",\n  \"createdByName\": \"{{userName}}\"\n}",
+        "options": {
+          "raw": {
+            "language": "json"
+          }
+        }
       }
     },
     "getApp": {
@@ -55,7 +65,12 @@
       "url": "{{baseUrl}}/app-builder/v1/apps/{{appId}}",
       "body": {
         "mode": "raw",
-        "raw": "{\n  \"appName\": \"Demo Mart\",\n  \"signingProfile\": \"demo-signing\",\n  \"updatedBy\": \"{{userId}}\",\n  \"updatedByName\": \"{{userName}}\"\n}"
+        "raw": "{\n  \"appName\": \"Demo Mart\",\n  \"signingProfile\": \"demo-signing\",\n  \"updatedBy\": \"{{userId}}\",\n  \"updatedByName\": \"{{userName}}\"\n}",
+        "options": {
+          "raw": {
+            "language": "json"
+          }
+        }
       }
     },
     "defaultTheme": {
@@ -69,7 +84,12 @@
       "url": "{{baseUrl}}/app-builder/v1/apps/{{appId}}/theme",
       "body": {
         "mode": "raw",
-        "raw": "{\n  \"theme\": {\n    \"colors\": {\n      \"brand\": \"{{brandColor}}\",\n      \"accent\": \"#1E88E5\"\n    },\n    \"radii\": {\n      \"md\": 10\n    },\n    \"components\": {\n      \"button\": {\n        \"radius\": 8,\n        \"minHeight\": 44\n      }\n    }\n  },\n  \"updatedBy\": \"{{userId}}\",\n  \"updatedByName\": \"{{userName}}\"\n}"
+        "raw": "{\n  \"theme\": {\n    \"colors\": {\n      \"brand\": \"{{brandColor}}\",\n      \"accent\": \"#1E88E5\"\n    },\n    \"radii\": {\n      \"md\": 10\n    },\n    \"components\": {\n      \"button\": {\n        \"radius\": 8,\n        \"minHeight\": 44\n      }\n    }\n  },\n  \"updatedBy\": \"{{userId}}\",\n  \"updatedByName\": \"{{userName}}\"\n}",
+        "options": {
+          "raw": {
+            "language": "json"
+          }
+        }
       }
     },
     "publishTheme": {
@@ -78,7 +98,12 @@
       "url": "{{baseUrl}}/app-builder/v1/apps/{{appId}}/theme/publish",
       "body": {
         "mode": "raw",
-        "raw": "{\n  \"updatedBy\": \"{{userId}}\",\n  \"updatedByName\": \"{{userName}}\"\n}"
+        "raw": "{\n  \"updatedBy\": \"{{userId}}\",\n  \"updatedByName\": \"{{userName}}\"\n}",
+        "options": {
+          "raw": {
+            "language": "json"
+          }
+        }
       }
     },
     "uploadAsset": {
@@ -111,7 +136,12 @@
       "url": "{{baseUrl}}/app-builder/v1/apps/{{appId}}/builds",
       "body": {
         "mode": "raw",
-        "raw": "{\n  \"platform\": \"ANDROID\",\n  \"environment\": \"STAGE\",\n  \"artifactType\": \"AAB\",\n  \"versionName\": \"1.0.0\",\n  \"createdBy\": \"{{userId}}\",\n  \"createdByName\": \"{{userName}}\"\n}"
+        "raw": "{\n  \"platform\": \"ANDROID\",\n  \"environment\": \"STAGE\",\n  \"artifactType\": \"AAB\",\n  \"versionName\": \"1.0.0\",\n  \"createdBy\": \"{{userId}}\",\n  \"createdByName\": \"{{userName}}\"\n}",
+        "options": {
+          "raw": {
+            "language": "json"
+          }
+        }
       }
     },
     "launchQueue": {
@@ -217,27 +247,7 @@
     "ciConfig": {
       "name": "5.2 Get build config",
       "method": "GET",
-      "url": "{{baseUrl}}/app-builder/ci/v1/builds/{{buildId}}/config",
-      "auth": {
-        "type": "apikey",
-        "apikey": [
-          {
-            "key": "key",
-            "value": "X-App-Builder-Token",
-            "type": "string"
-          },
-          {
-            "key": "value",
-            "value": "{{ciToken}}",
-            "type": "string"
-          },
-          {
-            "key": "in",
-            "value": "header",
-            "type": "string"
-          }
-        ]
-      }
+      "url": "{{baseUrl}}/app-builder/ci/v1/builds/{{buildId}}/config"
     },
     "ciStatus": {
       "name": "5.5 Report SUCCESS",
@@ -245,27 +255,12 @@
       "url": "{{baseUrl}}/app-builder/ci/v1/builds/{{buildId}}/status",
       "body": {
         "mode": "raw",
-        "raw": "{\n  \"status\": \"SUCCESS\",\n  \"artifactUrl\": \"https://storage.googleapis.com/twinleaves_dev_public/app-builder/builds/{{buildId}}/app-release.aab\",\n  \"message\": \"Build finished\"\n}"
-      },
-      "auth": {
-        "type": "apikey",
-        "apikey": [
-          {
-            "key": "key",
-            "value": "X-App-Builder-Token",
-            "type": "string"
-          },
-          {
-            "key": "value",
-            "value": "{{ciToken}}",
-            "type": "string"
-          },
-          {
-            "key": "in",
-            "value": "header",
-            "type": "string"
+        "raw": "{\n  \"status\": \"SUCCESS\",\n  \"artifactUrl\": \"https://storage.googleapis.com/twinleaves_dev_public/app-builder/builds/{{buildId}}/app-release.aab\",\n  \"message\": \"Build finished\"\n}",
+        "options": {
+          "raw": {
+            "language": "json"
           }
-        ]
+        }
       }
     },
     "connectAppleInvite": {

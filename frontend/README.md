@@ -1,66 +1,77 @@
-# RMS App Builder UI replica
+# RMS App Builder POC
 
-The default frontend now runs entirely with a local demo service. It follows
-[the Replit brief](REPLIT-UI-PROMPT.md) and the supplied RMS screenshots:
-RMS navigation/header, App Builder toolbar, seven setup tabs, matching blue/gray
-styling, form cards, and the interactive phone preview. It does not call
-retail-service, Google, Apple, CI, or the legacy Node backend.
+The RMS-style seven-step UI now uses the supplied retail-service Postman APIs.
+Live mode and demo mode share the existing UI and a single service boundary.
 
 ## Run
 
 ```sh
-cd frontend  # if starting from the repository root
+cd frontend
 npm install
 npm run dev
 ```
 
-Open the URL printed by Vite, normally http://localhost:5173.
-No environment variables or backend are needed for this UI iteration.
+Open the Vite URL, normally http://localhost:5173. The local `.env.local` has been
+configured with the requested ngrok base, retail/branch/user values, and the
+collection's login token. It is git-ignored; do not commit tokens.
 
-## Demo journey
+```dotenv
+VITE_APP_BUILDER_MODE=real
+VITE_API_BASE=https://17e1-202-83-17-69.ngrok-free.app/retail-service
+VITE_RETAIL_ID=RET_421
+VITE_BRANCH_ID=RLC_1316
+VITE_ACCESS_TOKEN=<current user-service login access token>
+VITE_USER_ID=dinesh
+VITE_USER_NAME=Dinesh
+```
 
-The initial draft is **Untitled app 3 / Market Day**, with Android selected and
-an explicitly simulated connected Google account, matching the screenshots.
-In Developer accounts, choose **Try the account setup flow** to exercise the
-complete Yes/No → signup-return → Check Account → invitation instructions →
-explicit access acknowledgement → Connect journey. Developer IDs remain strings.
-The Simulated outcome control offers deterministic failures and pending states.
-Choose Happy path and check again to complete a pending connection.
+Restart Vite after changing environment variables. Local development requests go
+through Vite's `/__retail` proxy to the configured base URL, avoiding browser CORS
+restrictions. Production builds use the backend directly and still require CORS.
+Set VITE_DEV_PROXY=false only if you intentionally want direct browser requests. In real RMS, use its existing
+authenticated user/token and retail context instead of POC environment values.
+Only set `VITE_APP_BUILDER_MODE=demo` when you deliberately want the offline UI demo;
+real connection errors never fall back to simulated success.
 
-Continue through app details, branding, the 30-field theme, test builds and
-production checks. Both requires independent connections and current successful,
-acknowledged test builds for both platforms. Editing the configuration invalidates
-older release readiness. Publishing a theme is separate from creating a build.
-Build downloads are actual JSON demo reports, clearly labeled; no APK/IPA is built.
+## Real flow
 
-Use the toolbar Back button to view app templates and create more drafts.
-The left grid icon opens build history with filters, details, and downloads.
-The preview supports Home, Product, Cart and Splash and responds to draft edits.
+Select platforms → developer account signup/ID format validation → grant invitation
+access → Connect → wait for backend VERIFIED status → save app details → upload
+branding → save/publish theme → request/download/test build → production access
+checks → request production build → store-console upload guidance.
 
-Non-sensitive progress persists in versioned browser storage for the demo retailer.
-Image files stay in memory, require reselection after refresh, and trigger a browser
-leave warning. To start fresh, clear this site's localStorage. Demo invitation emails
-and store context are fixtures, never production credentials or real authorization.
+The current collection has no ID-only account verification endpoint. The UI labels
+its local check **Validate ID format**. A developer ID does not grant authorization.
+INVITE_SENT is pending; use Refresh status after Pallet confirmation. The original
+chart's strict all-selected-platforms verification gate is applied alongside backend
+permission flags. Simulated outcomes, demo downloads and CI/staff controls are hidden.
 
-## Architecture and later APIs
+App drafts start locally until details are saved after verification. Backend images
+are restored from their URLs after refresh. Template/platform/step draft preferences
+and test acknowledgements currently persist in isolated local storage; the UI labels
+the test acknowledgement limitation. See the backend changes below for shared state.
 
-Components retain the existing React/Vite structure: `App.jsx`, `AppBuilder.jsx`,
-`StoreAccounts.jsx`, `ThemeEditor.jsx`, `Preview.jsx`, and `Builds.jsx`.
-`src/appBuilderService.js` selects the adapter for all screens.
-`src/demo/demoService.js` owns asynchronous operations, status transitions and
-permission gates; `metadata.js` contains fixtures and `validation.js` contains
-ID/theme/image validation. `themeUtils.js` holds transport-independent helpers.
+## Architecture and backend gaps
 
-The existing `src/api.js` and Postman contract tests are preserved for integration,
-but the default screen does not import that client. Changing `VITE_API_BASE` alone
-will not enable API mode. See [UI-REPLICA.md](UI-REPLICA.md) for the integration seam
-and the account-check contract gap. Staff/CI APIs must remain outside merchant UI.
+`src/appBuilderService.js` selects real or demo. `src/services/retailService.js`
+normalizes backend data, manages loading/errors, guards actions, handles persistence
+and polls backend build states. `src/api.js` implements collection paths/payloads,
+login/ngrok headers, multipart uploads and envelope handling. Components retain the
+existing responsibilities and RMS styling.
 
-Screenshot matching is based on the provided images; exact RMS component/font
-parity would require the corresponding Replit source. The Replit editor's floating
-“Update from main” overlay is excluded from the application.
+[API-FLOW-GAPS.md](API-FLOW-GAPS.md) maps every UI action to its API and describes the
+minimal remaining backend work: optional ID-details checking, invitation metadata,
+strict server permission gates, durable test validation/configuration revision, and
+per-app setup fields. These are not represented as existing endpoints.
 
-## Verification
+The collection's 17e1 tunnel passed live read-only checks. The earlier 2ddf tunnel
+was offline. The current backend reports MOCK verification; the UI labels that
+mode and does not treat it as proof of real store access. A later check found the
+17e1 tunnel had also gone offline; both the backend and ngrok must stay running.
+A 401 requires a current login token. If curl works but the browser fails, check CORS
+for the Vite origin and `at`/`ngrok-skip-browser-warning` headers.
+
+## Checks
 
 ```sh
 npm test
@@ -68,5 +79,7 @@ npm run lint
 npm run build
 ```
 
-Tests cover the preserved Postman contract and demo account states, stale responses,
-platform gates, release readiness, build retries, storage and validation.
+Tests cover the latest sanitized Postman contract, real adapter operations and
+permissions, revision-bound build acknowledgement, pending invitations, uploads,
+refresh, isolation, and the preserved demo adapter. Browser verification intercepts
+API responses so it performs no live mutations.

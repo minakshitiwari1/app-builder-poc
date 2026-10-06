@@ -2,6 +2,9 @@ import axios from 'axios';
 
 // retail-service base URL, including the /retail-service context path.
 export const API_BASE = (import.meta.env.VITE_API_BASE || 'http://localhost:8081/retail-service').replace(/\/$/, '');
+// Vite forwards development requests to API_BASE, avoiding browser CORS failures.
+// Production builds still use the configured backend URL directly.
+export const TRANSPORT_BASE = import.meta.env.DEV && import.meta.env.VITE_DEV_PROXY !== 'false' ? '/__retail' : API_BASE;
 
 // Only for local testing: lets the Builds page act as GitHub Actions and move a
 // build through BUILDING / SUCCESS / FAILED. Never set this in a deployed build.
@@ -17,10 +20,13 @@ export const canUseLaunchConsole = STAFF_TOKEN.length > 0;
 const tunnelHeaders = /\.(ngrok-free\.app|ngrok-free\.dev|ngrok\.app|ngrok\.io)$/.test(new URL(API_BASE).hostname)
   ? { 'ngrok-skip-browser-warning': 'true' }
   : {};
-const retail = axios.create({ baseURL: API_BASE, headers: tunnelHeaders });
-const http = axios.create({ baseURL: `${API_BASE}/app-builder/v1`, headers: tunnelHeaders });
-const staff = axios.create({ baseURL: `${API_BASE}/app-builder/v1/launch`, headers: { ...tunnelHeaders, 'X-App-Builder-Staff-Token': STAFF_TOKEN } });
-const ci = axios.create({ baseURL: `${API_BASE}/app-builder/ci/v1`, headers: { ...tunnelHeaders, 'X-App-Builder-Token': CI_TOKEN } });
+// The supplied collection uses the user-service login token in the `at` header.
+// This POC reads a local dev token; RMS must inject its authenticated user token.
+const merchantHeaders = { ...tunnelHeaders, ...(import.meta.env.VITE_ACCESS_TOKEN ? { at: import.meta.env.VITE_ACCESS_TOKEN } : {}) };
+const retail = axios.create({ baseURL: TRANSPORT_BASE, headers: merchantHeaders, timeout: 20000 });
+const http = axios.create({ baseURL: `${TRANSPORT_BASE}/app-builder/v1`, headers: merchantHeaders, timeout: 20000 });
+const staff = axios.create({ baseURL: `${TRANSPORT_BASE}/app-builder/v1/launch`, headers: { ...tunnelHeaders, 'X-App-Builder-Staff-Token': STAFF_TOKEN } });
+const ci = axios.create({ baseURL: `${TRANSPORT_BASE}/app-builder/ci/v1`, headers: { ...tunnelHeaders, 'X-App-Builder-Token': CI_TOKEN } });
 
 // retail-service answers {es, message, statusCode, data}; errors carry a readable message.
 const unwrap = request =>
@@ -30,6 +36,7 @@ const unwrap = request =>
         throw new Error(`The ngrok tunnel at ${API_BASE} is offline. Restart ngrok and check VITE_API_BASE matches its active URL.`);
       }
       if (error.response?.data?.message) throw new Error(error.response.data.message);
+      if (error.response?.status === 401) throw new Error('Login token is missing or expired. Update VITE_ACCESS_TOKEN with a current user-service access token and restart the frontend.');
       if (error.response) throw new Error(`Request failed (HTTP ${error.response.status})`);
       throw new Error(`Cannot reach retail-service at ${API_BASE}. Is it running?`);
     })
@@ -52,8 +59,11 @@ export const api = {
 
   // The retail's stores (existing branch API): [{branchId, branchName}].
   stores: retailId => retail.get(`/branch/v1/names/${encodeURIComponent(retailId)}`)
-    .then(response => (response.data?.retailBranchNameBranchIdProjectionList || [])
-      .sort((a, b) => (a.branchName || '').localeCompare(b.branchName || ''))),
+    .then(response => {
+      const branches = response.data?.retailBranchNameBranchIdProjectionList;
+      if (!Array.isArray(branches)) throw new Error(response.data?.message || 'Branch API returned no branch list.');
+      return branches.sort((a, b) => (a.branchName || '').localeCompare(b.branchName || ''));
+    }),
 
   listApps: retailId => unwrap(http.get('/apps', { params: { retailId } })),
   getApp: appId => unwrap(http.get(`/apps/${appId}`)),

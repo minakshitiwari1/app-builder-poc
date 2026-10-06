@@ -4,7 +4,7 @@ import ThemeEditor from './ThemeEditor';
 import Preview from './Preview';
 import BuildPanel from './demo/BuildPanel';
 import { appBuilderService as demoService } from './appBuilderService';
-import { CONTEXT, STEPS, THEME_FIELDS, TEMPLATES } from './demo/metadata';
+import { STEPS, THEME_FIELDS, TEMPLATES } from './demo/metadata';
 import { readImage } from './demo/validation';
 import { themeFromFields } from './themeUtils';
 import { Alert, Icon } from './ui';
@@ -14,34 +14,41 @@ function Branding({ app, run }) {
   const choose = async (kind, file) => {
     if (!file) return;
     setBusy(kind);
-    await run('Brand image selected and validated · Demo.', async () => { const asset = await readImage(file, kind); demoService.setAsset(app.appId, kind, asset); });
+    await run(demoService.mode === 'real' ? 'Brand image uploaded.' : 'Brand image selected and validated · Demo.', async () => {
+      const asset = await readImage(file, kind);
+      try { await demoService.setAsset(app.appId, kind, asset, file); }
+      finally { if (demoService.mode === 'real') URL.revokeObjectURL(asset.url); }
+    });
     setBusy('');
   };
-  return <div className="stack"><h2>Brand assets</h2><p className="muted">PNG/JPEG, maximum 5 MB. Files stay in memory and must be selected again after refresh.</p>
+  return <div className="stack"><h2>Brand assets</h2><p className="muted">PNG/JPEG, maximum 5 MB. {demoService.mode === 'real' ? 'Images are uploaded to retail-service and restored from their URLs.' : 'Files stay in memory and must be selected again after refresh.'}</p>
     <div className="asset-list">{[['ICON', 'App icon', 'Square, 512–4096 px. Backend output would be 1024 px.', 'Choose app icon'], ['SPLASH', 'Splash screen artwork', 'Maximum 4096 px in either dimension.', 'Choose splash image']].map(([kind, title, hint, action]) => {
       const asset = app.assets[kind];
       return <div className="asset-row" key={kind}><div className={`asset-thumb ${kind === 'SPLASH' ? 'splash-thumb' : ''}`}>{asset ? <img src={asset.url} alt={`${title} selected`} /> : <span>{kind === 'ICON' ? 'No icon' : <>No<br />splash</>}</span>}</div>
-        <div className="asset-description"><h3>{title}</h3><p className="muted">{hint}</p>{asset && <small>{asset.name} · {asset.width} × {asset.height} px</small>}
+        <div className="asset-description"><h3>{title}</h3><p className="muted">{hint}</p>{asset && <small>{asset.name}{asset.width ? ` · ${asset.width} × ${asset.height} px` : ''}</small>}
           <div className="button-row"><label className={`btn btn-secondary file-button ${busy ? 'disabled' : ''}`}>{busy === kind ? 'Validating…' : asset ? `Replace ${kind === 'ICON' ? 'app icon' : 'splash image'}` : action}<input type="file" aria-label={action} accept="image/png,image/jpeg" disabled={Boolean(busy)} onChange={event => { choose(kind, event.target.files?.[0]); event.target.value = ''; }} /></label>
-            {asset && <button className="text-button" disabled={Boolean(busy)} onClick={() => demoService.setAsset(app.appId, kind, null)}>Remove</button>}</div>
+            {asset && demoService.mode !== 'real' && <button className="text-button" disabled={Boolean(busy)} onClick={() => demoService.setAsset(app.appId, kind, null)}>Remove</button>}</div>
         </div></div>;
     })}</div>
-    <p className="info-note">Selecting an image runs demo validation; no image is uploaded or converted by a backend.</p>
+    <p className="info-note">{demoService.mode === 'real' ? 'The browser validates the selected image; retail-service performs the upload and conversion.' : 'Selecting an image runs demo validation; no image is uploaded or converted by a backend.'}</p>
   </div>;
 }
 
 export default function AppBuilder({ app, workspace, step, permissions, onStep, run, message, busy, previewScreen, onPreview, onBuilds }) {
+  const real = demoService.mode === 'real';
+  const fields = workspace.meta?.themeFields || THEME_FIELDS;
+  const context = workspace.context;
   const template = TEMPLATES.find(item => item.id === app.templateId);
   const next = step + 1;
   const canContinue = step === 0 ? app.platforms.length > 0 : step < 6 && permissions.allowedSteps[next];
   const isLocked = !permissions.allowedSteps[step];
   const resetTheme = () => {
     if (!window.confirm('Reset the draft theme to template defaults?')) return;
-    const theme = themeFromFields(THEME_FIELDS); theme.colors.brand = template.brand; theme.colors.accent = template.accent;
+    const theme = themeFromFields(fields, null, workspace.defaultTheme); if (!real) { theme.colors.brand = template.brand; theme.colors.accent = template.accent; }
     demoService.setTheme(app.appId, theme);
   };
   return <main className="editor-page">
-    {(step === 0 || step === 1) && <div className="editor-page-heading"><h2>App Builder</h2><p>{app.appName} · {STEPS[step]}</p><span className="demo-badge">Demo</span></div>}
+    {(step === 0 || step === 1) && <div className="editor-page-heading"><h2>App Builder</h2><p>{app.appName} · {STEPS[step]}</p><span className="demo-badge">{real ? 'API' : 'Demo'}</span></div>}
     {message && <div className={`page-notice ${message.error ? 'error' : ''}`} role={message.error ? 'alert' : 'status'}>{message.text}</div>}
     <nav className="wizard-tabs" aria-label="App Builder steps">{STEPS.map((name, index) => <button key={name} className={index === step ? 'active' : ''} aria-current={index === step ? 'step' : undefined}
       disabled={!permissions.allowedSteps[index]} onClick={() => onStep(index)}><span>{String(index + 1).padStart(2, '0')} {name}</span>{!permissions.allowedSteps[index] && <Icon name="lock" size={13} />}</button>)}</nav>
@@ -49,20 +56,20 @@ export default function AppBuilder({ app, workspace, step, permissions, onStep, 
       {isLocked ? <div className="stack"><h2>Complete the earlier steps</h2><Alert tone="warning">This step is locked. Connect selected accounts, save app details, add both brand images, and publish your theme as required.</Alert><button className="btn btn-secondary self-start" onClick={() => onStep(permissions.allowedSteps.findLastIndex(Boolean))}>Go to the next available step</button></div> : <>
         {step === 0 && <div className="stack"><h2>Choose your platforms</h2><p className="muted">Connect only the accounts for your selected platforms.</p>
           <div className="platform-choices">{[['ANDROID', 'Android', 'Android customers'], ['IOS', 'iOS', 'iPhone and iPad customers']].map(([platform, title, subtitle]) => <label key={platform} className={`platform-option ${app.platforms.includes(platform) ? 'selected' : ''}`}>
-            <input type="checkbox" checked={app.platforms.includes(platform)} onChange={event => demoService.setPlatforms(app.appId, event.target.checked ? [...app.platforms, platform] : app.platforms.filter(item => item !== platform))} /><span><strong>{title}</strong><small>{subtitle}</small></span></label>)}</div>
+            <input type="checkbox" checked={app.platforms.includes(platform)} disabled={busy} onChange={event => run('Platforms saved.', async () => demoService.setPlatforms(app.appId, event.target.checked ? [...app.platforms, platform] : app.platforms.filter(item => item !== platform)))} /><span><strong>{title}</strong><small>{subtitle}</small></span></label>)}</div>
           <p className="muted">App details unlock when all selected accounts are connected. Changing platforms keeps your saved accounts.</p>
           {!app.platforms.length && <Alert tone="warning">Select Android, iOS, or both to continue.</Alert>}
         </div>}
         {step === 1 && <StoreAccounts app={app} workspace={workspace} permissions={permissions} run={run} />}
         {step === 2 && <form className="stack" onSubmit={event => { event.preventDefault(); run('App details saved · Demo.', () => demoService.saveDetails(app.appId)); }}>
-          <h2>App details</h2><p className="muted">These details are saved to this retailer’s demo workspace.</p>
+          <h2>App details</h2><p className="muted">{real ? 'These details are saved to your retail-service workspace.' : 'These details are saved to this retailer’s demo workspace.'}</p>
           <label className="field" htmlFor="app-name"><span className="field-label">App name</span><input id="app-name" value={app.appName} maxLength={30} required onChange={event => demoService.updateDetails(app.appId, { appName: event.target.value })} /><small>{app.appName.length}/30 characters</small></label>
-          <fieldset className="branch-choice"><legend>RMS branch</legend><label><input type="checkbox" checked={app.defaultBranchId === CONTEXT.branchId} onChange={event => demoService.updateDetails(app.appId, { defaultBranchId: event.target.checked ? CONTEXT.branchId : '' })} /><span>{CONTEXT.branchName} ·<br />{CONTEXT.branchId}</span></label></fieldset>
+          {real ? <label className="field"><span className="field-label">RMS branch</span><select value={app.defaultBranchId} disabled={busy} onChange={event => demoService.updateDetails(app.appId, { defaultBranchId: event.target.value })}><option value="">Select a branch</option>{workspace.branches.map(branch => <option key={branch.branchId} value={branch.branchId}>{branch.branchName} · {branch.branchId}</option>)}</select>{workspace.branchError && <Alert tone="warning">Branch API failed: {workspace.branchError}</Alert>}</label> : <fieldset className="branch-choice"><legend>RMS branch</legend><label><input type="checkbox" checked={app.defaultBranchId === context.branchId} onChange={event => demoService.updateDetails(app.appId, { defaultBranchId: event.target.checked ? context.branchId : '' })} /><span>{context.branchName} ·<br />{context.branchId}</span></label></fieldset>}
           <button className="btn btn-primary wide" type="submit" disabled={busy}>{busy ? 'Saving…' : 'Save app details'}</button>
-          <details className="advanced-identity"><summary>Advanced · generated app identity</summary><dl><div><dt>Merchant key</dt><dd>{app.appName.toLowerCase().replace(/[^a-z0-9]/g, '') || 'yourstore'}</dd></div><div><dt>Android package / iOS bundle</dt><dd>com.{app.appName.toLowerCase().replace(/[^a-z0-9]/g, '') || 'yourstore'}</dd></div><div><dt>Identity</dt><dd>Illustrative generated IDs; final values come from your backend.</dd></div></dl></details>
+          <details className="advanced-identity"><summary>Advanced · generated app identity</summary><dl><div><dt>Merchant key</dt><dd>{app.merchantKey || (real ? 'Generated after saving' : app.appName.toLowerCase().replace(/[^a-z0-9]/g, '') || 'yourstore')}</dd></div><div><dt>Android package / iOS bundle</dt><dd>com.{app.merchantKey || (real ? 'Generated after saving' : app.appName.toLowerCase().replace(/[^a-z0-9]/g, '') || 'yourstore')}</dd></div><div><dt>Identity</dt><dd>{real ? (app.identityLocked ? 'Backend identity is locked after the first build.' : 'Identity returned by retail-service.') : 'Illustrative generated IDs; final values come from your backend.'}</dd></div></dl></details>
         </form>}
         {step === 3 && <Branding app={app} run={run} />}
-        {step === 4 && <div className="stack"><div className="section-heading"><h2>Theme</h2><span className="demo-badge">{app.themeDirty ? 'Unpublished edits' : app.themeVersion ? `Published v${app.themeVersion}` : 'Draft'}</span></div><p className="muted">Customize your storefront. Draft changes appear in the preview immediately.</p><ThemeEditor fields={THEME_FIELDS} theme={app.theme} onChange={theme => demoService.setTheme(app.appId, theme)} /><div className="button-row"><button className="btn btn-secondary" disabled={busy} onClick={() => run('Theme draft saved · Demo.', () => demoService.saveTheme(app.appId))}>Save theme draft</button><button className="btn btn-primary" disabled={busy} onClick={() => run('Theme published · Demo. No mobile rebuild was requested.', () => demoService.publishTheme(app.appId))}>Publish theme</button><button className="text-button" onClick={resetTheme}>Reset to defaults</button></div></div>}
+        {step === 4 && <div className="stack"><div className="section-heading"><h2>Theme</h2><span className="demo-badge">{app.themeDirty ? 'Unpublished edits' : app.themeVersion ? `Published v${app.themeVersion}` : 'Draft'}</span></div><p className="muted">Customize your storefront. Draft changes appear in the preview immediately.</p><ThemeEditor fields={fields} theme={app.theme} onChange={theme => demoService.setTheme(app.appId, theme)} /><div className="button-row"><button className="btn btn-secondary" disabled={busy} onClick={() => run('Theme draft saved · Demo.', () => demoService.saveTheme(app.appId))}>Save theme draft</button><button className="btn btn-primary" disabled={busy} onClick={() => run('Theme published · Demo. No mobile rebuild was requested.', () => demoService.publishTheme(app.appId))}>Publish theme</button><button className="text-button" onClick={resetTheme}>Reset to defaults</button></div></div>}
         {(step === 5 || step === 6) && <BuildPanel key={`${app.appId}-${step}-${app.platforms.join(',')}`} app={app} workspace={workspace} permissions={permissions} production={step === 6} run={run} onBuilds={onBuilds} />}
       </>}
       <footer className="step-footer"><button className="btn btn-secondary" disabled={step === 0 || busy} onClick={() => onStep(step - 1)}><Icon name="arrowLeft" /> Back</button><p>Step {step + 1} of 7 · {permissions.connectedCount} of {app.platforms.length} selected platforms connected</p>
