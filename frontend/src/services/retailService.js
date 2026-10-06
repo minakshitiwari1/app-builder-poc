@@ -151,10 +151,9 @@ export function createRetailService({ api, context, user, storage, namespace = '
         const app = appById(id);
         if (!permissions(id).allowedSteps[2]) throw new Error('Connect and verify all selected accounts. Backend app creation permission is also required.');
         if (!app.appName.trim() || app.appName.trim().length > 30) throw new Error('Enter an app name between 1 and 30 characters.');
-        // The app always belongs to the RMS location the user is logged in to; it is not chosen here.
-        if (!state.branches.some(branch => branch.branchId === context.branchId)) throw new Error(`Your RMS location (branch ${context.branchId}) was not found for this retail. Log in to the location again and retry.`);
+        if (!state.branches.some(branch => branch.branchId === app.defaultBranchId)) throw new Error('Select a branch returned by the branch API.');
         const requested = fingerprint(app);
-        const body = { appName: app.appName.trim(), defaultBranchId: context.branchId };
+        const body = { appName: app.appName.trim(), defaultBranchId: app.defaultBranchId };
         const raw = app.remoteAppId ? await api.updateApp(app.remoteAppId, body, user) : await api.createApp({ ...body, retailId: context.retailId,
           merchantKey: `store${globalThis.crypto.randomUUID().replaceAll('-', '').slice(0, 24)}` }, user);
         if (!raw?.appId) throw new Error('Backend did not return an appId.');
