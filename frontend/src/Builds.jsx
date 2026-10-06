@@ -1,195 +1,38 @@
-import { useCallback, useEffect, useState } from 'react';
-import { api, canSimulateCi, formatDate } from './api';
-import { Alert, BuildPill, EmptyState, Icon, Spinner, StoreLogo } from './ui';
+import { useEffect, useRef, useState } from 'react';
+import { BuildPill, Icon } from './ui';
+import { appBuilderService as demoService } from './appBuilderService';
+import { BuildSummary } from './demo/BuildPanel';
+import { formatDate } from './themeUtils';
 
-const COUNTS = [
-  ['TOTAL', 'Total builds', 'layers', 'neutral'],
-  ['QUEUED', 'Queued', 'clock', 'warning'],
-  ['BUILDING', 'Building', 'refresh', 'info'],
-  ['SUCCESS', 'Ready', 'check', 'success'],
-  ['FAILED', 'Failed', 'alert', 'danger'],
-];
-const LABELS = { IOS: 'iOS', AAB: 'AAB', APK: 'APK', IPA: 'IPA' };
-const titleCase = value => (value ? LABELS[value] || value.charAt(0) + value.slice(1).toLowerCase() : '—');
-
-function BuildDetails({ buildId, close, refresh }) {
-  const [build, setBuild] = useState(null);
-  const [config, setConfig] = useState(null);
-  const [message, setMessage] = useState(null);
-
-  const load = useCallback(async () => {
-    try {
-      setBuild(await api.getBuild(buildId));
-    } catch (error) {
-      setMessage({ text: error.message, error: true });
-    }
-  }, [buildId]);
-
-  useEffect(() => {
-    let active = true;
-    api.getBuild(buildId)
-      .then(loaded => active && setBuild(loaded))
-      .catch(error => active && setMessage({ text: error.message, error: true }));
-    const onKey = event => event.key === 'Escape' && close();
-    document.addEventListener('keydown', onKey);
-    return () => {
-      active = false;
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [buildId, close]);
-
-  const act = async (label, action) => {
-    try {
-      await action();
-      setMessage({ text: label });
-      await load();
-      refresh();
-    } catch (error) {
-      setMessage({ text: error.message, error: true });
-    }
-  };
-
-  const done = build && (build.status === 'SUCCESS' || build.status === 'FAILED');
-
-  return (
-    <div className="drawer-backdrop" onClick={close}>
-      <aside className="drawer" role="dialog" aria-modal="true" aria-label="Build details" onClick={e => e.stopPropagation()}>
-        <header className="drawer-head">
-          <div>
-            <small className="eyebrow">Build</small>
-            <h2>{build?.appName || 'Loading…'}</h2>
-            {build && <p><code>{build.buildId}</code> <BuildPill status={build.status} /></p>}
-          </div>
-          <button type="button" className="icon-button" onClick={close} aria-label="Close"><Icon name="x" /></button>
-        </header>
-        {!build && !message && <Spinner />}
-        {build && (
-          <div className="drawer-body stack">
-            {build.statusMessage && <Alert tone={build.status === 'FAILED' ? 'danger' : 'info'}>{build.statusMessage}</Alert>}
-            <dl className="facts">
-              {[['Platform', titleCase(build.platform)], ['Release', titleCase(build.environment)], ['File type', build.artifactType],
-                ['Version', `${build.versionName} (${build.versionCode})`], ['App ID', build.merchantKey], ['Created by', build.createdBy],
-                ['Created', formatDate(build.created)], ['Started', formatDate(build.triggeredAt)], ['Finished', formatDate(build.completedAt)]]
-                .map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value || '—'}</dd></div>)}
-            </dl>
-            <div className="button-row">
-              {build.artifactUrl && <a className="btn btn-primary" href={build.artifactUrl} target="_blank" rel="noreferrer"><Icon name="download" size={16} /> Download app file</a>}
-              {build.githubRunUrl && <a className="btn btn-secondary" href={build.githubRunUrl} target="_blank" rel="noreferrer">GitHub run {build.githubRunId} <Icon name="external" size={14} /></a>}
-              {build.status === 'QUEUED' && (
-                <button type="button" className="btn btn-secondary" onClick={() => act('GitHub trigger retried.', () => api.retryDispatch(build.buildId))}>
-                  <Icon name="refresh" size={16} /> Retry GitHub trigger
-                </button>
-              )}
-            </div>
-
-            {canSimulateCi && (
-              <div className="simulate">
-                <b>Local testing: act as GitHub Actions</b>
-                <small>Uses VITE_CI_TOKEN. Only for local testing.</small>
-                <div className="button-row">
-                  <button type="button" className="btn btn-secondary btn-sm" disabled={done} onClick={() => act('Loaded the config CI would receive.', async () => setConfig(await api.ciConfig(build.buildId)))}>Show build config</button>
-                  <button type="button" className="btn btn-secondary btn-sm" disabled={done} onClick={() => act('Marked BUILDING.', () => api.ciStatus(build.buildId, { status: 'BUILDING', githubRunId: 'local-test', message: 'Simulated from App Builder UI' }))}>Mark building</button>
-                  <button type="button" className="btn btn-primary btn-sm" disabled={done} onClick={() => act('Marked SUCCESS.', () => api.ciStatus(build.buildId, { status: 'SUCCESS', artifactUrl: `https://example.com/local-test/${build.buildId}.${build.artifactType.toLowerCase()}`, message: 'Simulated success' }))}>Mark success</button>
-                  <button type="button" className="btn btn-danger btn-sm" disabled={done} onClick={() => act('Marked FAILED.', () => api.ciStatus(build.buildId, { status: 'FAILED', message: 'Simulated failure' }))}>Mark failed</button>
-                </div>
-                {config && <pre>{JSON.stringify(config, null, 2)}</pre>}
-              </div>
-            )}
-          </div>
-        )}
-        {message && <Alert tone={message.error ? 'danger' : 'success'}>{message.text}</Alert>}
-      </aside>
-    </div>
-  );
+function Details({ build, onClose, run }) {
+  const dialog = useRef(null);
+  useEffect(() => { const element = dialog.current; element.showModal(); return () => element.close(); }, []);
+  return <dialog className="build-dialog" ref={dialog} onClose={() => { if (!dialog.current?.open) onClose(); }} onClick={event => { if (event.target === dialog.current) dialog.current.close(); }}>
+    <div className="section-heading"><h2>Build details</h2><button className="icon-button" aria-label="Close build details" onClick={() => dialog.current.close()}><Icon name="x" /></button></div>
+    <p className="muted">{build.appName}</p><BuildSummary build={build} onTest={id => run('Test acknowledged for this demo build.', async () => demoService.acknowledgeTest(id))} />
+    <dl className="build-facts">{[['App ID', build.appId], ['Version code', build.versionCode], ['Created', formatDate(build.created)], ['Finished', formatDate(build.completedAt)], ['Mode', 'Demo · no installable artifact']].map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
+  </dialog>;
 }
 
-export default function Builds({ meta, settings }) {
-  const [data, setData] = useState(null);
-  const [error, setError] = useState('');
-  const [filters, setFilters] = useState({ search: '', status: '', environment: '', platform: '' });
+export default function Builds({ workspace, run, onApp }) {
+  const [filters, setFilters] = useState({ search: '', status: '', platform: '', environment: '', appId: '' });
+  const [page, setPage] = useState(0);
   const [open, setOpen] = useState(null);
-
-  const load = useCallback(async () => {
-    try {
-      setData(await api.dashboard({ retailId: settings.retailId, ...filters, page: 0, size: 50 }));
-      setError('');
-    } catch (err) {
-      setError(err.message);
-    }
-  }, [settings.retailId, filters]);
-
-  useEffect(() => {
-    load();
-    const timer = setInterval(load, 8000);
-    return () => clearInterval(timer);
-  }, [load]);
-
-  const close = useCallback(() => setOpen(null), []);
-
-  const select = (key, label, values) => (
-    <select aria-label={label} value={filters[key]} onChange={e => setFilters({ ...filters, [key]: e.target.value })}>
-      <option value="">All {label}</option>
-      {values.map(value => <option key={value} value={value}>{titleCase(value)}</option>)}
-    </select>
-  );
-
-  const builds = data?.builds.content ?? [];
-  const filtered = Object.values(filters).some(Boolean);
-  return (
-    <div className="page stack">
-      <div className="stat-grid">
-        {COUNTS.map(([key, label, icon, tone]) => (
-          <button type="button" key={key} className={`stat stat-${tone} ${filters.status === key ? 'active' : ''}`}
-            onClick={() => setFilters({ ...filters, status: key === 'TOTAL' || filters.status === key ? '' : key })}>
-            <span className="stat-icon"><Icon name={icon} size={18} /></span>
-            <span><b>{data?.counts[key] ?? '–'}</b><small>{label}</small></span>
-          </button>
-        ))}
-      </div>
-
-      <section className="card">
-        <div className="toolbar">
-          <div className="search">
-            <Icon name="search" size={16} />
-            <input aria-label="Search builds" placeholder="Search build ID, app name or app ID" value={filters.search}
-              onChange={e => setFilters({ ...filters, search: e.target.value })} />
-          </div>
-          {select('status', 'statuses', meta.enums.buildStatuses)}
-          {select('environment', 'releases', meta.enums.environments)}
-          {select('platform', 'platforms', meta.enums.platforms)}
-          <button type="button" className="btn btn-secondary" onClick={load} title="Refreshes every 8 seconds"><Icon name="refresh" size={16} /> Refresh</button>
-        </div>
-        {error && <Alert tone="danger">{error}</Alert>}
-        {!data ? <div className="pad"><Spinner label="Loading builds…" /></div> : !builds.length ? (
-          <EmptyState icon="layers" title={filtered ? 'No builds match these filters' : 'No builds yet'}
-            action={filtered && <button type="button" className="btn btn-secondary" onClick={() => setFilters({ search: '', status: '', environment: '', platform: '' })}>Clear filters</button>}>
-            {filtered ? 'Try a different search or filter.' : 'Start a build from step 5 (Publish) in the App Builder.'}
-          </EmptyState>
-        ) : (
-          <div className="table-wrap">
-            <table className="table">
-              <thead>
-                <tr><th>App</th><th>Platform</th><th>Release</th><th>Version</th><th>Status</th><th>Created</th><th aria-label="Open" /></tr>
-              </thead>
-              <tbody>
-                {builds.map(build => (
-                  <tr key={build.buildId} tabIndex={0} onClick={() => setOpen(build.buildId)}
-                    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(build.buildId); } }}>
-                    <td><b>{build.appName}</b><small className="mono">{build.buildId}</small></td>
-                    <td><span className="with-logo"><StoreLogo storeType={build.platform} size="sm" />{titleCase(build.platform)} · {build.artifactType}</span></td>
-                    <td>{titleCase(build.environment)}</td>
-                    <td>{build.versionName}<small>code {build.versionCode}</small></td>
-                    <td><BuildPill status={build.status} /></td>
-                    <td>{formatDate(build.created)}</td>
-                    <td className="row-action"><Icon name="right" size={16} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-      {open && <BuildDetails buildId={open} close={close} refresh={load} />}
-    </div>
-  );
+  const size = 10;
+  const filtered = workspace.builds.filter(build => Object.entries(filters).every(([key, value]) => !value || (key === 'search' ? `${build.appName} ${build.buildId}`.toLowerCase().includes(value.toLowerCase()) : build[key] === value)));
+  const currentPage = Math.min(page, Math.max(0, Math.ceil(filtered.length / size) - 1));
+  const rows = filtered.slice(currentPage * size, (currentPage + 1) * size);
+  const build = workspace.builds.find(item => item.buildId === open);
+  const update = (key, value) => { setFilters({ ...filters, [key]: value }); setPage(0); };
+  return <main className="editor-page dashboard-page"><div className="section-heading"><div><h2>Builds</h2><p className="muted">Build history for your demo shopping apps.</p></div><span className="demo-badge">Demo</span></div>
+    <div className="build-counts">{['TOTAL', 'QUEUED', 'BUILDING', 'SUCCESS', 'FAILED'].map(status => <button key={status} className={filters.status === status ? 'active' : ''} onClick={() => update('status', status === 'TOTAL' ? '' : filters.status === status ? '' : status)}><strong>{status === 'TOTAL' ? workspace.builds.length : workspace.builds.filter(item => item.status === status).length}</strong><span>{status === 'TOTAL' ? 'Total builds' : status === 'SUCCESS' ? 'Ready' : status.charAt(0) + status.slice(1).toLowerCase()}</span></button>)}</div>
+    <section className="editor-card"><div className="build-filters"><label className="search-field"><Icon name="search" /><input aria-label="Search builds" placeholder="Search app or build ID" value={filters.search} onChange={event => update('search', event.target.value)} /></label>
+      <select aria-label="Filter app" value={filters.appId} onChange={event => update('appId', event.target.value)}><option value="">All apps</option>{workspace.apps.map(app => <option key={app.appId} value={app.appId}>{app.appName}</option>)}</select>
+      <select aria-label="Filter platform" value={filters.platform} onChange={event => update('platform', event.target.value)}><option value="">All platforms</option><option value="ANDROID">Android</option><option value="IOS">iOS</option></select>
+      <select aria-label="Filter environment" value={filters.environment} onChange={event => update('environment', event.target.value)}><option value="">All environments</option>{['DEVELOPMENT', 'STAGE', 'PRODUCTION'].map(value => <option key={value}>{value}</option>)}</select>
+      <button className="btn btn-secondary" onClick={() => run('Demo build statuses refreshed.', async () => demoService.advanceBuilds())}><Icon name="refresh" /> Refresh</button></div>
+      {!rows.length ? <div className="empty-state"><Icon name="layers" size={36} /><h2>{workspace.builds.length ? 'No builds match your filters' : 'No builds yet'}</h2><p>{workspace.builds.length ? 'Try a different filter or search.' : 'Complete app setup, then create your first test build.'}</p><button className="btn btn-secondary" onClick={() => { if (workspace.builds.length) { setFilters({ search: '', status: '', platform: '', environment: '', appId: '' }); setPage(0); } else onApp(workspace.apps[0]?.appId); }}>{workspace.builds.length ? 'Clear filters' : 'Go to App Builder'}</button></div> : <div className="table-scroll"><table><thead><tr><th>App</th><th>Platform</th><th>Environment</th><th>Version</th><th>Status</th><th>Created</th><th>Details</th></tr></thead><tbody>{rows.map(item => <tr key={item.buildId}><td><strong>{item.appName}</strong><small>{item.buildId}</small></td><td>{item.platform === 'IOS' ? 'iOS' : 'Android'} · {item.artifactType}</td><td>{item.environment}</td><td>{item.versionName}<small>Code {item.versionCode}</small></td><td><BuildPill status={item.status} /></td><td>{formatDate(item.created)}</td><td><button className="icon-button" aria-label={`Open ${item.buildId}`} onClick={() => setOpen(item.buildId)}><Icon name="right" /></button></td></tr>)}</tbody></table></div>}
+      {filtered.length > 0 && <footer className="pagination"><span>{filtered.length} builds · Page {currentPage + 1} of {Math.max(1, Math.ceil(filtered.length / size))}</span><div className="button-row"><button className="btn btn-secondary" disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)}>Previous</button><button className="btn btn-secondary" disabled={(currentPage + 1) * size >= filtered.length} onClick={() => setPage(currentPage + 1)}>Next</button></div></footer>}
+    </section>{build && <Details build={build} onClose={() => setOpen(null)} run={run} />}
+  </main>;
 }

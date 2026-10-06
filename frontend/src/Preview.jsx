@@ -1,94 +1,31 @@
-import { useState } from 'react';
-
-const PRODUCTS = [['🍅', 'Fresh Tomatoes', '₹45'], ['🥛', 'Organic Milk', '₹68'], ['🥔', 'Potato Chips', '₹30'], ['🍊', 'Orange Juice', '₹95']];
-const CATEGORIES = [['🥬', 'Vegetables'], ['🥛', 'Dairy'], ['🍿', 'Snacks'], ['🥤', 'Drinks']];
-
-// Approximates how the shared app's screens use the theme tokens.
-export default function Preview({ appName, theme, iconUrl, splashUrl }) {
-  const [screen, setScreen] = useState('home');
-  const [device, setDevice] = useState('phone');
-  const { colors: c, spacing: s, radii: r, typography: t, components } = theme;
-  const button = components.button;
-  const card = components.card;
-  const size = key => Number(t.sizes[key]) || 14;
-  const buttonStyle = {
-    background: c.brand, color: c.brandContrast, border: 0,
-    borderRadius: Number(button.radius), minHeight: Number(button.minHeight) * 0.75,
-    fontSize: size('caption'), fontWeight: 700,
+export default function Preview({ appName, theme, iconUrl, splashUrl, screen, onScreenChange, compact = false }) {
+  const { colors, radii, spacing, typography, components } = theme;
+  const previewStyle = {
+    '--phone-brand': colors.brand, '--phone-accent': colors.accent, '--phone-on-brand': colors.brandContrast,
+    '--phone-bg': colors.background, '--phone-text': colors.text, '--phone-muted': colors.textMuted,
+    '--phone-surface': colors.surface, '--phone-soft': colors.surfaceMuted, '--phone-border': colors.border,
+    '--phone-success': colors.success, '--phone-radius': `${radii.lg}px`, '--phone-card-radius': `${components.card.radius}px`,
+    '--phone-padding': `${Math.max(0, Math.min(24, components.card.padding))}px`, '--phone-gap': `${Math.max(0, Math.min(20, spacing.sm))}px`,
+    '--phone-body': `${Math.max(9, Math.min(20, typography.sizes.body))}px`,
+    '--phone-title': `${Math.max(12, Math.min(28, typography.sizes.heading))}px`,
+    '--phone-button-radius': `${components.button.radius}px`, '--phone-button-height': `${Math.min(60, components.button.minHeight * .7)}px`,
   };
-
-  return (
-    <aside className="preview">
-      <div className="preview-head">
-        <div><h2>Live preview</h2><small><span className="live-dot" /> Updates as you edit</small></div>
-        <div className="segmented compact" role="tablist" aria-label="Screen">
-          {[['home', 'Home'], ['product', 'Product'], ['splash', 'Splash']].map(([id, label]) => (
-            <button key={id} type="button" role="tab" aria-selected={screen === id} className={screen === id ? 'selected' : ''} onClick={() => setScreen(id)}>{label}</button>
-          ))}
-        </div>
-      </div>
-      <div className="segmented compact device-bar" role="tablist" aria-label="Device">
-        {[['phone', 'Phone'], ['compact', 'Compact'], ['tablet', 'Tablet']].map(([id, label]) => (
-          <button key={id} type="button" role="tab" aria-selected={device === id} className={device === id ? 'selected' : ''} onClick={() => setDevice(id)}>{label}</button>
-        ))}
-      </div>
-      <div className="preview-stage">
-        <div className={`device-frame ${device}`} style={{ background: c.background, color: c.text, fontSize: size('body') * 0.85 }}>
-          <div className="device-status">9:41 <span>● ● ▰</span></div>
-          {screen === 'splash' ? (
-            <div className="splash-screen" style={{ background: c.brand }}>
-              {splashUrl ? <img src={splashUrl} alt="Splash screen" /> : <p style={{ color: c.brandContrast }}>Upload a splash screen</p>}
-            </div>
-          ) : (
-            <>
-              <header style={{ background: c.brand, color: c.brandContrast }}>
-                {iconUrl && <img src={iconUrl} alt="" />}
-                <b style={{ fontSize: size('title') * 0.85 }}>{appName || 'Your app'}</b>
-                <span>♡ 🛒</span>
-              </header>
-              {screen === 'home' ? (
-                <div className="preview-body" style={{ padding: Number(s.md) }}>
-                  <section className="promo" style={{ background: c.accent, color: c.brandContrast, borderRadius: Number(r.lg) }}>
-                    Fresh picks, delivered today<small>Explore popular essentials</small>
-                  </section>
-                  <h3 style={{ fontSize: size('title') * 0.8 }}>Shop by category</h3>
-                  <div className="category-row" style={{ gridTemplateColumns: 'repeat(4,1fr)' }}>
-                    {CATEGORIES.map(([icon, name]) => (
-                      <div key={name}>
-                        <i style={{ background: c.surfaceMuted, borderRadius: Number(r.md) }}>{icon}</i>
-                        <small style={{ color: c.textMuted }}>{name}</small>
-                      </div>
-                    ))}
-                  </div>
-                  <h3 style={{ fontSize: size('title') * 0.8 }}>Popular products</h3>
-                  <div className="product-grid" style={{ gridTemplateColumns: 'repeat(2,1fr)', gap: Number(s.sm) }}>
-                    {PRODUCTS.map(([icon, name, price]) => (
-                      <article key={name} style={{ background: c.surface, borderColor: c.border, borderRadius: Number(card.radius), padding: Number(card.padding) * 0.7 }}>
-                        <strong>{icon}</strong>
-                        <div>
-                          <b>{name}</b>
-                          <small style={{ color: c.brand }}>{price}</small>
-                          <button style={buttonStyle}>Add</button>
-                        </div>
-                      </article>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <div className="preview-body detail-preview" style={{ padding: Number(s.md) }}>
-                  <button className="back" style={{ color: c.brand }} onClick={() => setScreen('home')}>‹ Back</button>
-                  <div className="detail-art" style={{ height: 160, background: c.surfaceMuted, borderRadius: Number(r.lg) }}>🍅</div>
-                  <h2 style={{ fontSize: size('heading') * 0.8 }}>Fresh Tomatoes</h2>
-                  <b style={{ color: c.brand }}>₹45</b>
-                  <small style={{ color: c.success }}>In stock</small>
-                  <p style={{ color: c.textMuted }}>Farm fresh tomatoes, picked for everyday cooking.</p>
-                  <button className="preview-cta" style={{ ...buttonStyle, minHeight: Number(button.minHeight) }}>Add to Cart</button>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      </div>
-    </aside>
-  );
+  return <aside className={`preview ${compact ? 'preview-compact' : ''}`}>
+    {!compact && <><div className="section-heading"><h3>Live app preview</h3><span className="demo-badge">ILLUSTRATIVE</span></div>
+      <div className="preview-tabs" role="tablist" aria-label="Preview screen">{['Home', 'Product', 'Cart', 'Splash'].map(name =>
+        <button key={name} role="tab" aria-selected={screen === name.toLowerCase()} className={screen === name.toLowerCase() ? 'active' : ''} onClick={() => onScreenChange(name.toLowerCase())}>{name}</button>)}</div></>}
+    <div className="phone-frame" style={previewStyle}><div className="phone-notch" /><div className="phone-content">
+      {screen === 'splash' ? <div className="phone-splash">{splashUrl ? <img src={splashUrl} alt="Splash screen preview" /> : <><div className="phone-app-letter">{(appName || 'U')[0]}</div><strong>{appName}</strong><small>Your neighbourhood, on your phone</small></>}</div> : <>
+        <div className="phone-header"><div className="phone-app-title">{iconUrl ? <img src={iconUrl} alt="App icon preview" /> : <span className="phone-app-letter">{(appName || 'U')[0]}</span>}<strong>{appName || 'Untitled app'}</strong></div>
+          <p>Your neighbourhood, on your phone</p><div className="phone-search">Search products</div></div>
+        {screen === 'home' && <div className="phone-body"><div className="phone-promo"><small>MADE FOR YOUR STORE</small><strong>Good things, close<br />by.</strong></div><h3>Shop by category</h3>
+          <div className="phone-categories">{['Fresh produce', 'Pantry picks'].map(name => <div className="phone-category" key={name}><div className="phone-placeholder" /><span>{name}</span><button onClick={() => onScreenChange('product')}>Explore</button></div>)}</div>
+          <p className="phone-delivery">Delivery available · Today</p></div>}
+        {screen === 'product' && <div className="phone-body phone-product"><button className="phone-back" onClick={() => onScreenChange('home')}>‹ Back</button><div className="phone-product-art">Fresh produce</div><h3>Fresh Tomatoes</h3><strong>₹45 / 500 g</strong><p>Fresh picks for your everyday shopping.</p><button className="phone-cta" onClick={() => onScreenChange('cart')}>Add to cart</button></div>}
+        {screen === 'cart' && <div className="phone-body phone-product"><h3>Your cart</h3><div className="phone-cart-item"><span>Fresh Tomatoes<small>500 g · 1 item</small></span><strong>₹45</strong></div><p>Delivery available today</p><div className="phone-cart-item"><strong>Total</strong><strong>₹45</strong></div><button className="phone-cta" onClick={() => onScreenChange('home')}>Continue shopping</button></div>}
+        <div className="phone-bottom-nav">{[['Home', 'home'], ['Browse', 'product'], ['Cart', 'cart'], ['You', 'home']].map(([name, value]) => <button key={name} onClick={() => onScreenChange(value)}>{name}</button>)}</div>
+      </>}
+    </div></div>
+    {!compact && <p className="preview-caption">Draft-responsive illustration; it does not validate a mobile build.</p>}
+  </aside>;
 }

@@ -1,4 +1,4 @@
-import { getPath, setPath } from './api';
+import { getPath, setPath } from './themeUtils';
 
 const GROUP_TITLES = {
   colors: ['Colors', 'Brand, background and text colors'],

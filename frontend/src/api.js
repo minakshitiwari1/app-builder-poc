@@ -13,18 +13,34 @@ export const canSimulateCi = CI_TOKEN.length > 0;
 const STAFF_TOKEN = import.meta.env.VITE_STAFF_TOKEN || '';
 export const canUseLaunchConsole = STAFF_TOKEN.length > 0;
 
-const http = axios.create({ baseURL: `${API_BASE}/app-builder/v1` });
-const staff = axios.create({ baseURL: `${API_BASE}/app-builder/v1/launch`, headers: { 'X-App-Builder-Staff-Token': STAFF_TOKEN } });
-const ci = axios.create({ baseURL: `${API_BASE}/app-builder/ci/v1`, headers: { 'X-App-Builder-Token': CI_TOKEN } });
+// Free ngrok tunnels can return a browser warning page instead of API JSON.
+const tunnelHeaders = /\.(ngrok-free\.app|ngrok-free\.dev|ngrok\.app|ngrok\.io)$/.test(new URL(API_BASE).hostname)
+  ? { 'ngrok-skip-browser-warning': 'true' }
+  : {};
+const retail = axios.create({ baseURL: API_BASE, headers: tunnelHeaders });
+const http = axios.create({ baseURL: `${API_BASE}/app-builder/v1`, headers: tunnelHeaders });
+const staff = axios.create({ baseURL: `${API_BASE}/app-builder/v1/launch`, headers: { ...tunnelHeaders, 'X-App-Builder-Staff-Token': STAFF_TOKEN } });
+const ci = axios.create({ baseURL: `${API_BASE}/app-builder/ci/v1`, headers: { ...tunnelHeaders, 'X-App-Builder-Token': CI_TOKEN } });
 
 // retail-service answers {es, message, statusCode, data}; errors carry a readable message.
 const unwrap = request =>
   request
-    .then(response => response.data.data)
     .catch(error => {
+      if (typeof error.response?.data === 'string' && error.response.data.includes('ERR_NGROK_3200')) {
+        throw new Error(`The ngrok tunnel at ${API_BASE} is offline. Restart ngrok and check VITE_API_BASE matches its active URL.`);
+      }
       if (error.response?.data?.message) throw new Error(error.response.data.message);
       if (error.response) throw new Error(`Request failed (HTTP ${error.response.status})`);
       throw new Error(`Cannot reach retail-service at ${API_BASE}. Is it running?`);
+    })
+    .then(response => {
+      const body = response.data;
+      if (!body || typeof body !== 'object' || Array.isArray(body)) {
+        throw new Error('retail-service returned an invalid response. Expected App Builder JSON; check the API URL and ngrok tunnel.');
+      }
+      if (body.es !== 0) throw new Error(body.message || 'retail-service reported an App Builder error.');
+      if (!Object.hasOwn(body, 'data')) throw new Error('retail-service returned an App Builder response without data.');
+      return body.data;
     });
 
 const clean = params => Object.fromEntries(Object.entries(params).filter(([, value]) => value !== '' && value != null));
@@ -32,9 +48,10 @@ const by = user => ({ updatedBy: user.id, updatedByName: user.name });
 
 export const api = {
   meta: () => unwrap(http.get('/meta')),
+  defaultTheme: () => unwrap(http.get('/theme/default')),
 
   // The retail's stores (existing branch API): [{branchId, branchName}].
-  stores: retailId => axios.get(`${API_BASE}/branch/v1/names/${encodeURIComponent(retailId)}`)
+  stores: retailId => retail.get(`/branch/v1/names/${encodeURIComponent(retailId)}`)
     .then(response => (response.data?.retailBranchNameBranchIdProjectionList || [])
       .sort((a, b) => (a.branchName || '').localeCompare(b.branchName || ''))),
 
@@ -57,6 +74,8 @@ export const api = {
 
   createBuild: (appId, body, user) =>
     unwrap(http.post(`/apps/${appId}/builds`, { ...body, createdBy: user.id, createdByName: user.name })),
+  appBuilds: (appId, { page = 0, size = 20 } = {}) =>
+    unwrap(http.get(`/apps/${appId}/builds`, { params: { page, size } })),
   storeAccess: (appId, platform) => unwrap(http.get(`/apps/${appId}/store-access`, { params: { platform } })),
   dashboard: params => unwrap(http.get('/builds', { params: clean(params) })),
   getBuild: buildId => unwrap(http.get(`/builds/${buildId}`)),
@@ -113,9 +132,9 @@ export const setPath = (object, path, value) => {
   return copy;
 };
 
-export const themeFromFields = (fields, saved) =>
+export const themeFromFields = (fields, saved, defaults) =>
   fields.reduce((theme, field) => {
-    const savedValue = getPath(saved, field.path);
+    const savedValue = getPath(saved, field.path) ?? getPath(defaults, field.path);
     return setPath(theme, field.path, savedValue ?? field.default);
   }, {});
 

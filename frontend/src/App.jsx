@@ -1,181 +1,88 @@
-import { useEffect, useRef, useState } from 'react';
-import { API_BASE, api, canUseLaunchConsole } from './api';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import AppBuilder from './AppBuilder';
 import Builds from './Builds';
-import LaunchConsole from './LaunchConsole';
-import { Alert, Icon, Spinner } from './ui';
+import Preview from './Preview';
+import RmsShell from './demo/RmsShell';
+import { appBuilderService as demoService } from './appBuilderService';
+import { STEP_PATHS, TEMPLATES } from './demo/metadata';
+import { themeFromFields } from './themeUtils';
+import { THEME_FIELDS } from './demo/metadata';
+import { Icon } from './ui';
 import './App.css';
 
-const SETTINGS_KEY = 'app-builder-settings';
-const DEFAULT_SETTINGS = { retailId: 'RET_2', branchId: 'RLC_3', userId: 'dinesh', userName: 'Dinesh' };
-
-const PAGES = {
-  builder: { title: 'App Builder', subtitle: 'Design, brand and publish your store app', icon: 'phone' },
-  builds: { title: 'Builds', subtitle: 'Every app version built for your stores', icon: 'layers' },
-  launch: { title: 'Launch Console', subtitle: 'Pallet staff: confirm merchant store access', icon: 'shield' },
+const readRoute = () => {
+  const [page = 'builder', appId = 'DEMO_APP_3', slug = 'platforms'] = window.location.hash.replace(/^#\/?/, '').split('/');
+  return { page: ['apps', 'builds', 'builder'].includes(page) ? page : 'builder', appId, step: Math.max(0, STEP_PATHS.indexOf(slug)) };
 };
 
-const loadSettings = () => {
-  try {
-    return { ...DEFAULT_SETTINGS, ...JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') };
-  } catch {
-    return DEFAULT_SETTINGS;
-  }
-};
-
-function WorkspaceMenu({ settings, onApply }) {
-  const [open, setOpen] = useState(false);
-  const [draft, setDraft] = useState(settings);
-  const ref = useRef(null);
-
-  useEffect(() => {
-    if (!open) return undefined;
-    const close = event => {
-      if (event.type === 'keydown' ? event.key === 'Escape' : !ref.current?.contains(event.target)) setOpen(false);
-    };
-    document.addEventListener('mousedown', close);
-    document.addEventListener('keydown', close);
-    return () => {
-      document.removeEventListener('mousedown', close);
-      document.removeEventListener('keydown', close);
-    };
-  }, [open]);
-
-  const toggle = () => {
-    if (!open) setDraft(settings);
-    setOpen(!open);
-  };
-
-  const apply = event => {
-    event.preventDefault();
-    onApply(draft);
-    setOpen(false);
-  };
-
-  return (
-    <div className="workspace" ref={ref}>
-      <button type="button" className="workspace-button" onClick={toggle} aria-expanded={open}>
-        <span className="workspace-avatar">{settings.userName.slice(0, 1).toUpperCase()}</span>
-        <span className="workspace-text"><b>{settings.retailId}</b><small>{settings.userName}</small></span>
-        <Icon name="down" size={16} />
-      </button>
-      {open && (
-        <form className="popover" onSubmit={apply}>
-          <b>Workspace</b>
-          <small>Local testing: choose the retail and user the App Builder acts as.</small>
-          {[['retailId', 'Retail ID'], ['branchId', 'Default store (branch ID)'], ['userId', 'User ID'], ['userName', 'User name']].map(([key, label]) => (
-            <label key={key} htmlFor={`setting-${key}`}>
-              {label}
-              <input id={`setting-${key}`} value={draft[key]} onChange={e => setDraft({ ...draft, [key]: e.target.value.trim() })} />
-            </label>
-          ))}
-          <div className="button-row end">
-            <button type="button" className="btn btn-ghost" onClick={() => setOpen(false)}>Cancel</button>
-            <button type="submit" className="btn btn-primary">Apply</button>
-          </div>
-        </form>
-      )}
-    </div>
-  );
+function Templates({ workspace, onOpen, onCreate }) {
+  const [search, setSearch] = useState('');
+  const apps = workspace.apps.filter(app => app.appName.toLowerCase().includes(search.toLowerCase()));
+  return <main className="editor-page templates-page"><h2>App Builder</h2><p className="muted">Manage your app template or explore another starting point.</p>
+    <div className="section-heading template-section-heading"><h2>My Templates</h2><span className="muted">{apps.length}</span></div>
+    <label className="template-search"><Icon name="search" /><input aria-label="Search apps" placeholder="Find an app by name" value={search} onChange={event => setSearch(event.target.value)} /></label>
+    {apps.map(app => { const template = TEMPLATES.find(item => item.id === app.templateId); return <article className="active-template" key={app.appId}><div><div className="button-row"><h2>{app.appName}</h2><span className="pill pill-success">Draft · Demo</span></div><p className="muted">{template.description}</p><div className="button-row"><span className="demo-badge">{template.category}</span><span className="demo-badge">Mobile storefront</span></div><button className="btn btn-primary" onClick={() => onOpen(app.appId, app.step)}>Continue setup <Icon name="right" /></button></div><div className="template-phone-art"><Preview appName={app.appName} theme={app.theme} compact screen="home" onScreenChange={() => onOpen(app.appId, app.step)} /></div></article>; })}
+    {!apps.length && <p className="empty-inline">No apps match this search.</p>}
+    <div className="section-heading template-section-heading"><h2>Explore Templates</h2><span className="muted">{TEMPLATES.length}</span></div><div className="template-grid">{TEMPLATES.map(template => { const theme = themeFromFields(THEME_FIELDS); theme.colors.brand = template.brand; theme.colors.accent = template.accent; return <article className="template-card" key={template.id}><div className="template-art" style={{ background: `${template.brand}10` }}><Preview compact appName={template.name} theme={theme} screen="home" onScreenChange={() => onCreate(template.id)} /></div><div><small>{template.category}</small><h2>{template.name}</h2><p>{template.description}</p><button className="btn btn-primary" onClick={() => onCreate(template.id)}>Use this template <Icon name="right" /></button></div></article>; })}</div>
+  </main>;
 }
 
-// Each page has its own URL (#builder, #builds, #launch) so refresh and the back button work.
-const pageFromHash = () => {
-  const key = window.location.hash.replace(/^#\/?/, '');
-  return PAGES[key] && (key !== 'launch' || canUseLaunchConsole) ? key : 'builder';
-};
-
 export default function App() {
-  const [page, setPageState] = useState(pageFromHash);
-  const setPage = key => {
-    if (key !== page) window.history.pushState(null, '', `#${key}`);
-    setPageState(key);
-  };
-
+  const workspace = useSyncExternalStore(demoService.subscribe, demoService.getSnapshot);
+  const [route, setRoute] = useState(readRoute);
+  const [message, setMessage] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [previewScreen, setPreviewScreen] = useState('home');
+  const actionId = useRef(0);
+  const app = workspace.apps.find(item => item.appId === route.appId);
+  const displayedApp = route.page === 'builder' ? app : null;
+  const permissions = demoService.permissions(route.appId);
   useEffect(() => {
-    const onHash = () => setPageState(pageFromHash());
-    window.addEventListener('hashchange', onHash);
-    return () => window.removeEventListener('hashchange', onHash);
+    const changed = () => { actionId.current += 1; setRoute(readRoute()); setMessage(null); setBusy(false); setPublishing(false); window.scrollTo({ top: 0 }); };
+    window.addEventListener('hashchange', changed);
+    return () => window.removeEventListener('hashchange', changed);
   }, []);
-
+  useEffect(() => { document.title = `${route.page === 'builds' ? 'Builds' : 'App Builder'} · RMS Demo`; }, [route.page]);
+  const building = workspace.builds.some(build => ['QUEUED', 'BUILDING'].includes(build.status));
+  const transientEdits = workspace.apps.some(item => item.assets.ICON || item.assets.SPLASH);
   useEffect(() => {
-    document.title = `${PAGES[page].title} · Pallet App Builder`;
-  }, [page]);
-  const [settings, setSettings] = useState(loadSettings);
-  const [meta, setMeta] = useState(null);
-  const [error, setError] = useState('');
-
-  const connect = () => {
-    setError('');
-    api.meta().then(setMeta).catch(err => setError(err.message));
-  };
-
+    if (!transientEdits) return;
+    const warn = event => { event.preventDefault(); event.returnValue = ''; };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [transientEdits]);
   useEffect(() => {
-    api.meta().then(setMeta).catch(err => setError(err.message));
-  }, []);
-
-  const applySettings = next => {
-    setSettings(next);
-    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(next)); } catch { /* storage unavailable */ }
+    if (!building) return;
+    const timer = setInterval(() => demoService.advanceBuilds(), 700);
+    return () => clearInterval(timer);
+  }, [building]);
+  const navigate = useCallback((page, appId = workspace.apps[0]?.appId, step = 0) => {
+    const hash = page === 'builder' ? `#builder/${appId}/${STEP_PATHS[step]}` : `#${page}`;
+    if (window.location.hash !== hash) window.location.hash = hash;
+  }, [workspace.apps]);
+  const run = async (label, callback) => {
+    const token = ++actionId.current; setBusy(true); setMessage(null);
+    try { const result = await callback(); if (token === actionId.current) setMessage({ text: label }); return result; }
+    catch (error) { if (token === actionId.current) setMessage({ text: error.message, error: true }); }
+    finally { if (token === actionId.current) setBusy(false); }
   };
-
-  const user = { id: settings.userId, name: settings.userName };
-  const current = PAGES[page];
-  const navItem = key => (
-    <button type="button" className={`nav-item ${page === key ? 'active' : ''}`} onClick={() => setPage(key)}
-      aria-current={page === key ? 'page' : undefined}>
-      <Icon name={PAGES[key].icon} /> <span>{PAGES[key].title}</span>
-    </button>
-  );
-
-  return (
-    <div className="shell">
-      <nav className="sidebar" aria-label="Main">
-        <div className="brand">
-          <span className="brand-mark"><Icon name="phone" size={18} /></span>
-          <span><b>Pallet</b><small>App Builder</small></span>
-        </div>
-        <p className="menu-label">Workspace</p>
-        {navItem('builder')}
-        {navItem('builds')}
-        {canUseLaunchConsole && (
-          <>
-            <p className="menu-label">Pallet staff</p>
-            {navItem('launch')}
-          </>
-        )}
-        <div className="sidebar-foot">
-          <small>Apps publish under your own Google Play and Apple accounts.</small>
-        </div>
-      </nav>
-      <div className="content">
-        <header className="topbar">
-          <div className="topbar-title">
-            <h1>{current.title}</h1>
-            <small>{current.subtitle}</small>
-          </div>
-          <div className="topbar-actions">
-            <span className={`connection ${meta ? 'online' : error ? 'offline' : ''}`} title={API_BASE}>
-              <i />{meta ? 'Connected' : error ? 'Offline' : 'Connecting'}
-            </span>
-            <WorkspaceMenu settings={settings} onApply={applySettings} />
-          </div>
-        </header>
-        <main>
-          {error && (
-            <Alert tone="danger" title="Cannot load the App Builder"
-              action={<button type="button" className="btn btn-secondary" onClick={connect}><Icon name="refresh" size={16} /> Retry</button>}>
-              {error}
-            </Alert>
-          )}
-          {!meta && !error && <div className="card loading-card"><Spinner label="Connecting to retail-service…" /></div>}
-          {meta && page === 'builder' && (
-            <AppBuilder key={`${settings.retailId}-${settings.branchId}`} meta={meta} settings={settings} user={user} openBuilds={() => setPage('builds')} />
-          )}
-          {meta && page === 'builds' && <Builds key={settings.retailId} meta={meta} settings={settings} />}
-          {meta && page === 'launch' && canUseLaunchConsole && <LaunchConsole user={user} />}
-        </main>
-      </div>
-    </div>
-  );
+  const step = index => {
+    try { demoService.setStep(app.appId, index); navigate('builder', app.appId, index); }
+    catch (error) { setMessage({ text: error.message, error: true }); }
+  };
+  const publish = async () => {
+    setPublishing(true);
+    await run('Theme published · Demo. No mobile rebuild was requested.', () => demoService.publishTheme(app.appId));
+    setPublishing(false);
+  };
+  return <RmsShell context={workspace.context} app={displayedApp} template={TEMPLATES.find(item => item.id === app?.templateId)}
+    onBack={() => navigate('apps')} onSave={() => run('Draft saved · Demo.', () => demoService.saveDraft(app.appId))} onPublish={publish}
+    onNavigate={page => navigate(page)} onPreview={screen => { setPreviewScreen(screen); if (route.page !== 'builder') navigate('builder'); }} saving={busy && !publishing} publishing={publishing}>
+    {demoService.getStorageWarning() && <div className="global-note">{demoService.getStorageWarning()}</div>}
+    {route.page === 'builder' && app && <AppBuilder key={app.appId} app={app} workspace={workspace} step={route.step} permissions={permissions} onStep={step} run={run} message={message} busy={busy} previewScreen={previewScreen} onPreview={setPreviewScreen} onBuilds={() => navigate('builds')} />}
+    {route.page === 'builder' && !app && <main className="editor-page"><h2>App not found</h2><p>This demo draft is unavailable. Choose an existing app or start another.</p><button className="btn btn-primary" onClick={() => navigate('apps')}>View app templates</button></main>}
+    {route.page === 'apps' && <Templates workspace={workspace} onOpen={(id, index) => navigate('builder', id, demoService.permissions(id).allowedSteps[index] ? index : 0)} onCreate={id => navigate('builder', demoService.createApp(id))} />}
+    {route.page === 'builds' && <><div className="dashboard-message">{message && <div className={`page-notice ${message.error ? 'error' : ''}`} role="status">{message.text}</div>}</div><Builds workspace={workspace} run={run} onApp={id => navigate('builder', id)} /></>}
+  </RmsShell>;
 }

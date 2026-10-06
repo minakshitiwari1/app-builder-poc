@@ -1,6 +1,14 @@
 // Small shared UI pieces so every screen looks and behaves the same.
 
 const ICONS = {
+  arrowLeft: 'M19 12H5 M12 5l-7 7 7 7',
+  lock: 'M6 10h12v11H6z M8 10V6a4 4 0 0 1 8 0v4',
+  cart: 'M2 3h3l3 12h11l3-9H6 M9 21h.01 M18 21h.01 M8 18h11',
+  bell: 'M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9 M10 21h4',
+  pin: 'M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0z M12 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
+  grid: 'M3 3h6v6H3z M15 3h6v6h-6z M3 15h6v6H3z M15 15h6v6h-6z',
+  swap: 'M4 7h16 M15 2l5 5-5 5 M20 17H4 M9 12l-5 5 5 5',
+  logout: 'M13 3H3v18h10 M10 12h11 M16 7l5 5-5 5',
   phone: 'M7 2h10a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z M11 18h2',
   layers: 'M12 2 2 7l10 5 10-5-10-5z M2 17l10 5 10-5 M2 12l10 5 10-5',
   shield: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z M9 12l2 2 4-4',
